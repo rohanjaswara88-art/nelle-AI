@@ -195,7 +195,13 @@ while True:
             "artificial intelligence and machine learning."
         )
 
+ elif "rahul" in command:
 
+        speak(
+"I am Jarvis, a voice-controlled personal AI assistant. I can listen to your voice commands and respond using speech. I can open YouTube, Google, and ChatGPT for you. I can search Google for anything you ask and search YouTube for videos using your voice. I can tell you the current time and provide basic information about my creator and his friends. I am currently being developed to become a smarter and more capable AI assistant, with more features and abilities being added in the future"   
+
+
+         )
    
     elif (
         "stop" in command
