@@ -19,6 +19,7 @@ from pydantic import BaseModel, Field
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from brain import Brain  # noqa: E402
+from topics import detect_topic  # noqa: E402
 from emotion import EMOTIONS  # noqa: E402
 
 WEB_DIR = Path(__file__).resolve().parent / "web"
@@ -64,6 +65,7 @@ def create_app(brain: Brain | None = None) -> FastAPI:
             "source": result.source,
             "url": result.url,
             "calc": result.calc.to_dict() if result.calc else None,
+            "topic": detect_topic(message, result.reply.response, result.source),
             "memory": len(b.memory),
         }
 

@@ -1,5 +1,4 @@
-// Emotion controller: turns each reply into the ball's mood and motion, the HUD, the voice and the chat.
-import { Hud } from "./hud.js";
+// Emotion controller: turns each reply into the ball's mood, motion and topic shape, the voice and the chat.
 import { Stage } from "./stage.js";
 import { SpeechInput, VoicePlayer } from "./voice.js";
 
@@ -14,6 +13,8 @@ const els = {
   reset: $("#reset"),
   provider: $("#provider"),
   status: $("#status-state"),
+  mood: $("#mood"),
+  starters: $("#starters"),
   memory: $("#memory"),
   toast: $("#toast"),
 };
@@ -30,8 +31,7 @@ const TEXT_WORDS_PER_SECOND = 4.4;
 const SETTLE_MS = 1800;
 const MIN_THINKING_MS = 1100; // long enough for the thinking animation to read, even offline
 
-const stage = new Stage($("#fog"), $("#ball"));
-const hud = new Hud($("#hud"), $("#lexicon"));
+const stage = new Stage($("#fog"), $("#ball"), $("#mind"));
 const player = new VoicePlayer();
 const speech = new SpeechInput();
 
@@ -41,15 +41,13 @@ let abort = null;
 let reveal = null;
 let speakReplies = readSetting("nelle.speak", false);
 
-stage.onFrame((dt, info) => {
+stage.onFrame((dt) => {
   if (state === "speaking") stage.setLevel(player.level());
   if (state === "thinking") {
     const label = stage.searching ? "Searching" : "Thinking";
-    hud.set("state", label.toUpperCase());
     if (els.status.textContent !== label) els.status.textContent = label;
   }
   tickReveal(dt);
-  hud.tick(dt, info);
 });
 
 function readSetting(key, fallback) {
@@ -73,7 +71,6 @@ function setState(next) {
   state = next;
   stage.setState(next);
   document.body.dataset.state = next;
-  hud.set("state", STATE_TEXT[next].toUpperCase());
   els.status.textContent = STATE_TEXT[next];
   const busy = next === "thinking" || next === "speaking" || next === "answering";
   els.send.classList.toggle("is-stop", busy);
@@ -83,17 +80,19 @@ function setState(next) {
 
 function setMood({ emotion, intensity, voiceStyle }) {
   stage.setMood(emotion, intensity);
-  hud.set("emotion", emotion.toUpperCase());
-  hud.set("intensity", `INTENSITY ${Number(intensity).toFixed(2)}`);
-  hud.set("voice", `VOICE ${voiceStyle.toUpperCase()}`);
-  hud.setEmotion(emotion);
-  hud.glitch();
+  const label = emotion[0].toUpperCase() + emotion.slice(1);
+  if (els.mood.textContent !== label) {
+    els.mood.textContent = label;
+    els.mood.classList.remove("flip");
+    void els.mood.offsetWidth; // restart the CSS animation
+    els.mood.classList.add("flip");
+  }
+  els.mood.title = `Intensity ${Number(intensity).toFixed(2)} · voice ${voiceStyle}`;
 }
 
 function setMemory(count) {
   const text = `${String(count).padStart(2, "0")}/${MEMORY_SIZE}`;
   els.memory.textContent = `MEM ${text}`;
-  hud.set("memory", `MEMORY ${text}`);
 }
 
 function toast(message) {
@@ -108,7 +107,16 @@ function addMessage(role, text, meta = {}) {
   item.className = `msg ${role}`;
   const label = document.createElement("p");
   label.className = "meta";
-  label.textContent = role === "user" ? "[YOU]" : `[NELLE] ${meta.emotion ? `· ${meta.emotion.toUpperCase()} ${Number(meta.intensity).toFixed(2)}` : ""}`;
+  label.textContent = role === "user" ? "You" : "Nelle";
+  if (role === "nelle" && meta.emotion) {
+    for (const text of [meta.emotion, meta.topic && meta.topic !== "general" ? meta.topic : null]) {
+      if (!text) continue;
+      const tag = document.createElement("span");
+      tag.className = "tag";
+      tag.textContent = text;
+      label.append(tag);
+    }
+  }
   const body = document.createElement("p");
   body.className = "body";
   body.textContent = text;
@@ -203,6 +211,7 @@ async function send(text, viaVoice = false) {
   const id = ++job;
   const wantsVoice = viaVoice || speakReplies;
   if (wantsVoice) player.unlock(); // still inside the click/keypress, so audio is allowed
+  document.body.classList.add("started");
   addMessage("user", text);
   stage.receive(); // the ball takes the message in
   els.input.value = "";
@@ -233,7 +242,7 @@ async function send(text, viaVoice = false) {
   const remaining = MIN_THINKING_MS - (performance.now() - thinkingSince);
   if (remaining > 0) await new Promise((resolve) => setTimeout(resolve, remaining));
   if (id !== job) return;
-  stage.found();
+  stage.found(data.topic);
 
   setMood(data);
   if (data.memory !== undefined) setMemory(data.memory);
@@ -306,6 +315,10 @@ els.input.addEventListener("keydown", (event) => {
 });
 els.input.addEventListener("input", autosize);
 els.mic.addEventListener("click", listen);
+els.starters.addEventListener("click", (event) => {
+  const button = event.target.closest("button");
+  if (button) send(button.textContent);
+});
 addEventListener("keydown", (event) => {
   if (event.key === "Escape") interrupt();
 });
@@ -329,8 +342,10 @@ els.reset.addEventListener("click", async () => {
     return toast("Couldn't reach the server to clear memory.");
   }
   els.log.replaceChildren();
+  document.body.classList.remove("started");
   setMood({ emotion: "neutral", intensity: 0.4, voiceStyle: "calm" });
   setMemory(0);
+  stage.setTopic("general");
   stage.jolt(1);
 });
 

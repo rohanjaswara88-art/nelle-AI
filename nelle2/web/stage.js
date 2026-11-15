@@ -1,5 +1,6 @@
 // The stage: Nelle's plasma ball, the fog around it, and how both react to her mood and voice.
 // One requestAnimationFrame loop drives everything and pauses while the tab is hidden.
+import { Constellation } from "./constellation.js";
 import { createCrystalBall, parseColor } from "./crystal.js";
 
 const FOG_SCALE = 0.4; // the fog is soft, so its canvas renders at low resolution
@@ -35,8 +36,9 @@ const rgba = (c, a) => `rgba(${(c[0] * 255) | 0},${(c[1] * 255) | 0},${(c[2] * 2
 const COLORS = Object.fromEntries(Object.entries(MOODS).map(([name, [hex]]) => [name, parseColor(hex, [0.95, 0.36, 0.82])]));
 
 export class Stage {
-  constructor(fogCanvas, ballContainer) {
+  constructor(fogCanvas, ballContainer, mindCanvas) {
     this.fog = fogCanvas;
+    this.mind = new Constellation(mindCanvas);
     this.ctx = fogCanvas.getContext("2d");
     this.ballContainer = ballContainer;
     this.reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -53,7 +55,6 @@ export class Stage {
     this.spin = 0; // turns the dust cloud: a vortex while thinking
     this.spinSpeed = 0;
     this.seek = 0; // 0..1, how strongly the thinking/searching visuals show
-    this.sweep = 0;
     this.thinkStart = 0;
     this.searching = false;
     this.pings = [];
@@ -104,10 +105,10 @@ export class Stage {
   resize() {
     this.fog.width = Math.round(innerWidth * FOG_SCALE);
     this.fog.height = Math.round(innerHeight * FOG_SCALE);
-    // leave room beside the ball for the HUD labels (about 150px each side on desktop)
+    // as big as fits, keeping a margin so the glow and the found ripple stay on screen
     const { width, height } = this.ballContainer.getBoundingClientRect();
-    const room = innerWidth < 860 ? width * 0.25 : width / 2 - 150;
-    this.baseSize = Math.max(0.42, Math.min(0.7, (2 * room) / Math.max(1, Math.min(width, height))));
+    const room = Math.min(width * 0.8, height * 0.78);
+    this.baseSize = Math.max(0.42, Math.min(0.72, room / Math.max(1, Math.min(width, height))));
   }
 
   setMood(emotion, intensity) {
@@ -132,6 +133,7 @@ export class Stage {
       this.thinkStart = this.time;
       this.searching = false;
     }
+    this.mind.setThinking(state === "thinking");
   }
 
   /** Audio loudness 0..1 while speaking. */
@@ -159,9 +161,10 @@ export class Stage {
     }
   }
 
-  /** The answer was found: a bright ripple bursts out and the vortex starts to slow. */
-  found() {
+  /** The answer was found: a ripple bursts out and the constellation forms the topic's shape. */
+  found(topic) {
     this.ripples.push(this.time);
+    this.mind.setTopic(topic);
     if (!this.ball) return;
     this.ball.surge(0.9);
     this.ball.kick(0, 0.1, 0.6);
@@ -178,36 +181,29 @@ export class Stage {
     this.ball.arc(rand(0, Math.PI * 2), 1.1);
   }
 
-  /** Where the HUD hangs its labels: points on and around the rim, in page pixels. */
+  /** Show a topic's shape without the found burst (used on reset). */
+  setTopic(topic) {
+    this.mind.setTopic(topic);
+  }
+
+  /** The ball's centre and radius in page pixels. */
   anchors() {
     const rect = this.ballContainer.getBoundingClientRect();
     const g = this.ball?.geometry() ?? { cx: rect.width / 2, cy: rect.height / 2, radius: Math.min(rect.width, rect.height) * 0.35 };
-    const at = (degrees, scale = 1) => {
-      const a = (degrees * Math.PI) / 180;
-      return [rect.left + g.cx + Math.cos(a) * g.radius * scale, rect.top + g.cy - Math.sin(a) * g.radius * scale];
-    };
-    return {
-      ne: at(48),
-      nw: at(140),
-      w: at(186),
-      e: at(-12),
-      sw: at(222),
-      rimTop: at(70, 1.06),
-      rimLeft: at(165, 1.06),
-      rimRight: at(-30, 1.06),
-      center: at(0, 0),
-      radius: g.radius,
-    };
+    return { center: [rect.left + g.cx, rect.top + g.cy], radius: g.radius };
   }
 
   loop(now) {
-    const dt = Math.min(0.05, (now - this.last) / 1000);
+    const dt = Math.max(0, Math.min(0.05, (now - this.last) / 1000)); // rAF time can trail performance.now()
     this.last = now;
     this.time += dt;
     this.animate(dt);
     this.ball?.render(Math.max(1 / 240, dt));
     const anchors = this.anchors();
     this.drawFog(anchors);
+    const [x, y] = anchors.center;
+    this.mind.setSearching(this.searching);
+    this.mind.render(dt, { x, y, radius: anchors.radius }, this.color, this.voice);
     for (const hook of this.frameHooks) hook(dt, { anchors, state: this.state });
     this.raf = requestAnimationFrame(this.loop);
   }
@@ -237,7 +233,6 @@ export class Stage {
     this.spinSpeed = ease(this.spinSpeed, spinGoal, thinking ? 1.4 : 0.8, dt);
     this.spin += this.spinSpeed * dt * (this.reducedMotion ? 0.2 : 1);
     this.seek = ease(this.seek, thinking ? 1 : 0, thinking ? 2 : 1.2, dt);
-    this.sweep += dt * (this.searching ? 3 : 1.7);
     if (this.searching && this.time - (this.pings.at(-1) ?? -9) > PING_EVERY) this.pings.push(this.time);
     for (const key of KEYS) this.values[key] = ease(this.values[key], goal[key], 1.6, dt);
 
@@ -347,16 +342,6 @@ export class Stage {
       core.addColorStop(1, rgba(glow, 0));
       ctx.fillStyle = core;
       ctx.fillRect(x - R, y - R, R * 2, R * 2);
-      // a scanning sweep, like a radar looking for the answer
-      if (ctx.createConicGradient) {
-        const sweep = ctx.createConicGradient(this.sweep, x, y);
-        sweep.addColorStop(0, rgba(glow, 0));
-        sweep.addColorStop(0.62, rgba(glow, 0));
-        sweep.addColorStop(0.99, rgba(glow, 0.22 * this.seek));
-        sweep.addColorStop(1, rgba(glow, 0));
-        ctx.fillStyle = sweep;
-        ctx.fillRect(x - R, y - R, R * 2, R * 2);
-      }
       ctx.restore();
     }
 

@@ -41,3 +41,9 @@ def test_chat_returns_calculation_details():
     assert data["source"] == "calc"
     assert data["calc"] == {"tokens": ["15%", "of", "200"], "expression": "15% of 200", "result": "30", "value": 30.0}
     assert make_client().post("/api/chat", json={"message": "hello"}).json()["calc"] is None
+
+
+def test_chat_reports_the_topic():
+    client = make_client()
+    assert client.post("/api/chat", json={"message": "tell me a joke"}).json()["topic"] == "fun"
+    assert client.post("/api/chat", json={"message": "what is 15% of 200"}).json()["topic"] == "math"
