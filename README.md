@@ -8,8 +8,6 @@ Nelle is an AI you talk to in the browser. She lives inside a crystal ball of cr
 
 ![Nelle speaking: the rim swells with her voice](docs/screenshots/speaking.jpg)
 
-![Calculation: 23 × 47 lands in the ball and counts up to 1,081](docs/screenshots/calculation.jpg)
-
 | Idle | Excited | Disappointed | Phone |
 |---|---|---|---|
 | ![Idle](docs/screenshots/idle.jpg) | ![Excited](docs/screenshots/excited.jpg) | ![Disappointed](docs/screenshots/disappointed.jpg) | ![Phone](docs/screenshots/mobile.jpg) |
@@ -19,10 +17,11 @@ Nelle is an AI you talk to in the browser. She lives inside a crystal ball of cr
 - **Feels the conversation.** Each reply comes back as structured JSON: `{emotion, intensity, response, voiceStyle}`, from 14 emotions (happy, excited, sad, frustrated, confused, curious, surprised, disappointed, nervous, casual, playful, thinking, concerned, neutral). Claude reads the last 12 messages and her current mood, not just keywords.
 - **Doesn't flicker between moods.** A smoother keeps her mood steady: a weak, different emotion is ignored and the current one fades, while a clear new emotion takes over. A repeated emotion blends its intensity instead of jumping.
 - **Shows it in the ball.** Each emotion has its own colour and energy: excited is hot pink with fast dust and lots of sparks, sad and disappointed fade to a dim violet with slow dust settling low, frustrated crackles red, thinking turns violet with arcs chasing round the rim. Changes blend smoothly over about a second.
+- **Shows her thinking.** While she finds an answer, the dust inside the ball turns into a slow vortex, a soft light sweeps round inside the glass like a scanner, and her core pulses. If the answer takes longer, she starts *searching*: the vortex speeds up, sparks hop round the rim and sonar pings ripple out into the fog. When the answer is found, a bright ripple bursts out of the ball and the vortex eases back to calm.
 - **Reacts to you.** Sending a message swirls the dust up from below. Listening sends slow rings out into the fog. Hovering or clicking the ball stirs it too.
 - **Speaks with one voice.** She uses a single neural voice (edge-tts `en-US-AvaNeural`) with small rate and pitch changes per emotion. The audio's loudness swells the rim and gently pulses the ball, and emphasised words fire sparks along the rim.
 - **Can be interrupted.** Press Esc or the stop button, or send a new message. The audio and the ball's speaking motion stop cleanly, and the unspoken rest of the reply is dimmed.
-- **Does maths exactly, and shows it.** Ask "what is 23 × 47", "15% of 200" or "the square root of 144 plus 8" and the server works it out exactly (`calc.py` parses it with `ast` and allows only numbers, + − × ÷ %, powers and square roots, so nothing you type is ever executed). While she works it out, maths symbols orbit the ball. Then the numbers from your question fly into it one by one, the ball flares, and the answer counts up in its centre.
+- **Gets sums right.** Plain arithmetic ("what is 23 × 47", "15% of 200") is worked out exactly on the server by `calc.py`, not guessed by the AI. It parses with `ast` and allows only numbers, + − × ÷ %, powers and square roots, so nothing you type is ever executed.
 - **Still does the old commands.** "open YouTube", "search Google for …", "what's the time" work from the chat. A sentence like "I had a hard time today" goes to the AI, not the clock.
 
 ## Run it
@@ -87,7 +86,7 @@ nelle2/
   voice.py     edge-tts voice with per-emotion delivery and word timings
   commands.py  the original command matcher (open, search, time)
   nelle.py     the original terminal voice assistant (still works)
-  web/         index.html, styles.css, app.js, stage.js, crystal.js, calculation.js, hud.js, voice.js
+  web/         index.html, styles.css, app.js, stage.js, crystal.js, hud.js, voice.js
 tests/         pytest tests
 docs/          screenshots
 ```

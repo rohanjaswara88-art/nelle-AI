@@ -1,5 +1,4 @@
 // Emotion controller: turns each reply into the ball's mood and motion, the HUD, the voice and the chat.
-import { CalcFx, looksLikeMath } from "./calculation.js";
 import { Hud } from "./hud.js";
 import { Stage } from "./stage.js";
 import { SpeechInput, VoicePlayer } from "./voice.js";
@@ -29,10 +28,10 @@ const STATE_TEXT = {
 const MEMORY_SIZE = 12;
 const TEXT_WORDS_PER_SECOND = 4.4;
 const SETTLE_MS = 1800;
+const MIN_THINKING_MS = 1100; // long enough for the thinking animation to read, even offline
 
 const stage = new Stage($("#fog"), $("#ball"));
 const hud = new Hud($("#hud"), $("#lexicon"));
-const calcFx = new CalcFx($("#calc"), stage);
 const player = new VoicePlayer();
 const speech = new SpeechInput();
 
@@ -44,8 +43,12 @@ let speakReplies = readSetting("nelle.speak", false);
 
 stage.onFrame((dt, info) => {
   if (state === "speaking") stage.setLevel(player.level());
+  if (state === "thinking") {
+    const label = stage.searching ? "Searching" : "Thinking";
+    hud.set("state", label.toUpperCase());
+    if (els.status.textContent !== label) els.status.textContent = label;
+  }
   tickReveal(dt);
-  calcFx.tick(dt, info);
   hud.tick(dt, info);
 });
 
@@ -176,7 +179,6 @@ function interrupt() {
   abort?.abort();
   player.stop();
   speech.cancel();
-  calcFx.cancel();
   finishReveal(true);
   stage.setLevel(0);
   setState("idle");
@@ -206,7 +208,7 @@ async function send(text, viaVoice = false) {
   els.input.value = "";
   autosize();
   setState("thinking");
-  if (looksLikeMath(text)) calcFx.start(); // start the maths orbit before the answer arrives
+  const thinkingSince = performance.now();
   abort = new AbortController();
 
   let data;
@@ -224,17 +226,14 @@ async function send(text, viaVoice = false) {
   }
   if (id !== job) return;
 
-  // fetch the voice while the calculation plays, so the answer is ready when the number lands
   const voiceReady =
     wantsVoice && data.source !== "error"
       ? postJson("/api/tts", { text: data.response, emotion: data.emotion, intensity: data.intensity }, abort.signal).catch(() => null)
       : null;
-  if (data.calc) {
-    await calcFx.resolve(data.calc);
-    if (id !== job) return;
-  } else {
-    calcFx.cancel();
-  }
+  const remaining = MIN_THINKING_MS - (performance.now() - thinkingSince);
+  if (remaining > 0) await new Promise((resolve) => setTimeout(resolve, remaining));
+  if (id !== job) return;
+  stage.found();
 
   setMood(data);
   if (data.memory !== undefined) setMemory(data.memory);

@@ -2,7 +2,8 @@
 //
 // Adapted to plain JavaScript from the CrystalizedBall component by React Bits
 // (https://reactbits.dev/animations/crystalized-ball). The React wrapper was removed and the
-// animation loop is driven by Nelle's stage; the shaders are unchanged.
+// animation loop is driven by Nelle's stage; the shaders are unchanged. Added: a `spin` setting
+// (radians) that turns the dust cloud, used for Nelle's thinking vortex.
 //
 // Copyright (c) 2026 David Haz. MIT + Commons Clause License Condition v1.0.
 // Permission is granted to use, copy, modify, merge, publish, and distribute the Software
@@ -1255,7 +1256,7 @@ export function createCrystalBall(container, initial = {}) {
     look.y += look.vy * dt;
     const swing = clamp(s.sway, 0, 1);
     dustShared.uTurn.value = [
-      swing * 0.42 * Math.sin(swayClock * 0.23) + look.x * 0.3,
+      swing * 0.42 * Math.sin(swayClock * 0.23) + look.x * 0.3 + (s.spin || 0),
       swing * 0.12 * Math.sin(swayClock * 0.17 + 1.3) - look.y * 0.16
     ];
     dustShared.uMotion.value = MOTIONS[s.motion] ?? 0;
