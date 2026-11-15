@@ -1,1 +1,3 @@
 pytest>=8
+fastapi>=0.110
+httpx>=0.27
