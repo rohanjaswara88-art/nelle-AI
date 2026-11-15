@@ -29,7 +29,7 @@ const TOP = Math.PI / 2;
 const SEARCH_AFTER = 1.4; // seconds of thinking before the ball starts "searching"
 const PING_EVERY = 1.1;
 const GESTURE_HOLD = 2.5; // seconds a gesture shape stays up
-const HAND_REACH = 1.25; // the camera frame's edges map to this far out in ball radii
+const HAND_REACH = 1.0; // the camera frame's edges map to the ball's rim
 const KICK_SPEED = 0.6; // hand speed (ball radii per second) before a flick also jolts the dust
 const KICK_EVERY = 0.22;
 
@@ -243,6 +243,7 @@ export class Stage {
    * leans toward it; a quick flick jolts it and a wave sends ripples across.
    */
   handMove(move) {
+    this.mind.setHand(move ? [(move.x - 0.5) * 2, (0.5 - move.y) * 2] : null);
     if (!this.ball || !move) return;
     const x = (move.x - 0.5) * 2 * HAND_REACH;
     const y = (0.5 - move.y) * 2 * HAND_REACH;

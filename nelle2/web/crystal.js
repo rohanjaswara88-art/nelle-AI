@@ -1175,8 +1175,9 @@ export function createCrystalBall(container, initial = {}) {
     brush.vy += ((by - brush.y) / dt - brush.vy) * follow;
     brush.x = bx;
     brush.y = by;
-    // a hand brush takes over whenever the mouse isn't stirring
-    const handOn = hand.power > 0.01 && !pointer.inside;
+    // a tracked hand wins over the mouse: the cursor is often still resting over the ball's area
+    // (e.g. on the Camera button) while the user moves their hand
+    const handOn = hand.power > 0.01;
     if (handOn) {
       brush.x = hand.x;
       brush.y = hand.y;
@@ -1187,10 +1188,10 @@ export function createCrystalBall(container, initial = {}) {
     const cap = brushSpeed > 4 ? 4 / brushSpeed : 1;
     const inBall = Math.exp(-Math.max(0, Math.hypot(bx, by) - 1) * 6);
     const handReach = Math.exp(-Math.max(0, Math.hypot(hand.x, hand.y) - 1) * 6);
-    const brushPower = pointer.inside
-      ? strength * inBall * presence
-      : handOn
-        ? hand.power * handReach * presence * (reducedMotion ? 0.35 : 1)
+    const brushPower = handOn
+      ? hand.power * handReach * presence * (reducedMotion ? 0.35 : 1)
+      : pointer.inside
+        ? strength * inBall * presence
         : 0;
     hand.power *= Math.exp(-dt / 0.25); // fades unless push() keeps it topped up
     lean.power *= Math.exp(-dt / 0.6);
@@ -1265,8 +1266,9 @@ export function createCrystalBall(container, initial = {}) {
     fieldUniforms.uHeat.value = [heat.angle, heat.near, heat.power * presence, 0];
 
     dustShared.uDustTime.value = dustTime;
-    const gaze = pointer.inside ? strength * presence : 0;
-    const leaning = pointer.inside ? 0 : lean.power * presence;
+    const handLeaning = lean.power > 0.01;
+    const gaze = pointer.inside && !handLeaning ? strength * presence : 0;
+    const leaning = handLeaning ? lean.power * presence : 0;
     const lookX = clamp(bx, -1.6, 1.6) * gaze + lean.x * leaning;
     const lookY = clamp(by, -1.6, 1.6) * gaze + lean.y * leaning;
     look.vx += (40 * (lookX - look.x) - 11 * look.vx) * dt;

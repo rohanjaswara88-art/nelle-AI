@@ -284,6 +284,8 @@ export class Constellation {
     this.effect = null; // a gesture shape playing over the top, see play()
     this.glow = 1;
     this.drawTime = 1.3;
+    this.handTarget = null; // [x, y] in -1..1 while a hand is in view
+    this.hand = [0, 0]; // eased: the constellation turns and drifts toward the hand
     this.shape = buildShape("general");
     this.yaw = 0;
     this.pitch = 0.32;
@@ -345,6 +347,11 @@ export class Constellation {
   drift() {
     this.mode = "drift";
     for (const node of this.nodes) node.home = randomInShell(0.42, 0.9);
+  }
+
+  /** Where the user's hand is, in -1..1 (y up), or null when it leaves. */
+  setHand(point) {
+    this.handTarget = point;
   }
 
   /** True while a gesture shape is playing. */
@@ -465,6 +472,10 @@ export class Constellation {
       this.pitch = ease(this.pitch, Math.sin(t * 0.29) * 0.14 * motion * facing, this.effect ? 4 : 1.6, dt);
     }
 
+    const [hx, hy] = this.handTarget ?? [0, 0];
+    const follow = this.handTarget ? 5 : 1.5; // snappy toward the hand, slow back to centre
+    this.hand = [ease(this.hand[0], hx, follow, dt), ease(this.hand[1], hy, follow, dt)];
+
     this.moveNodes(dt, t, motion);
     const projected = this.project(ball, voice);
     this.spawnPulses(dt, voice);
@@ -490,11 +501,18 @@ export class Constellation {
 
   /** Rotate and project every node to screen pixels, with depth for size and brightness. */
   project(ball, voice) {
-    const cy = Math.cos(this.yaw);
-    const sy = Math.sin(this.yaw);
-    const cp = Math.cos(this.pitch);
-    const sp = Math.sin(this.pitch);
+    // the hand turns the constellation toward itself and pulls it a little that way
+    const [hx, hy] = this.hand;
+    const turn = this.reducedMotion ? 0.4 : 1;
+    const yaw = this.yaw + hx * 0.55 * turn;
+    const pitch = this.pitch - hy * 0.4 * turn;
+    const cy = Math.cos(yaw);
+    const sy = Math.sin(yaw);
+    const cp = Math.cos(pitch);
+    const sp = Math.sin(pitch);
     const scale = ball.radius * 0.62 * (1 + voice * 0.05);
+    const shiftX = hx * ball.radius * 0.14 * turn;
+    const shiftY = -hy * ball.radius * 0.1 * turn;
     return this.nodes.map((node) => {
       const [x, y, z] = node.pos;
       const x1 = x * cy + z * sy;
@@ -503,8 +521,8 @@ export class Constellation {
       const z2 = y * sp + z1 * cp;
       const perspective = 2.6 / (2.6 - z2);
       return {
-        x: ball.x + x1 * scale * perspective,
-        y: ball.y - y2 * scale * perspective,
+        x: ball.x + shiftX + x1 * scale * perspective,
+        y: ball.y + shiftY - y2 * scale * perspective,
         depth: clamp01((z2 + 1) / 2),
       };
     });
