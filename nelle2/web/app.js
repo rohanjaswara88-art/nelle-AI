@@ -1,4 +1,5 @@
 // Emotion controller: turns each reply into the ball's mood and motion, the HUD, the voice and the chat.
+import { CalcFx, looksLikeMath } from "./calculation.js";
 import { Hud } from "./hud.js";
 import { Stage } from "./stage.js";
 import { SpeechInput, VoicePlayer } from "./voice.js";
@@ -31,6 +32,7 @@ const SETTLE_MS = 1800;
 
 const stage = new Stage($("#fog"), $("#ball"));
 const hud = new Hud($("#hud"), $("#lexicon"));
+const calcFx = new CalcFx($("#calc"), stage);
 const player = new VoicePlayer();
 const speech = new SpeechInput();
 
@@ -43,6 +45,7 @@ let speakReplies = readSetting("nelle.speak", false);
 stage.onFrame((dt, info) => {
   if (state === "speaking") stage.setLevel(player.level());
   tickReveal(dt);
+  calcFx.tick(dt, info);
   hud.tick(dt, info);
 });
 
@@ -173,6 +176,7 @@ function interrupt() {
   abort?.abort();
   player.stop();
   speech.cancel();
+  calcFx.cancel();
   finishReveal(true);
   stage.setLevel(0);
   setState("idle");
@@ -202,6 +206,7 @@ async function send(text, viaVoice = false) {
   els.input.value = "";
   autosize();
   setState("thinking");
+  if (looksLikeMath(text)) calcFx.start(); // start the maths orbit before the answer arrives
   abort = new AbortController();
 
   let data;
@@ -219,24 +224,31 @@ async function send(text, viaVoice = false) {
   }
   if (id !== job) return;
 
+  // fetch the voice while the calculation plays, so the answer is ready when the number lands
+  const voiceReady =
+    wantsVoice && data.source !== "error"
+      ? postJson("/api/tts", { text: data.response, emotion: data.emotion, intensity: data.intensity }, abort.signal).catch(() => null)
+      : null;
+  if (data.calc) {
+    await calcFx.resolve(data.calc);
+    if (id !== job) return;
+  } else {
+    calcFx.cancel();
+  }
+
   setMood(data);
   if (data.memory !== undefined) setMemory(data.memory);
-  if (data.source && data.source !== "command" && data.source !== "error") els.provider.textContent = data.source.toUpperCase();
+  if (data.source === "claude" || data.source === "offline") els.provider.textContent = data.source.toUpperCase();
   const message = addMessage("nelle", "", data); // filled in word by word below
   if (data.url) {
     addLink(message.item, data.url);
     window.open(data.url, "_blank", "noopener");
   }
 
-  if (wantsVoice && data.source !== "error") {
-    let voice = null;
-    try {
-      voice = await postJson("/api/tts", { text: data.response, emotion: data.emotion, intensity: data.intensity }, abort.signal);
-    } catch {
-      if (id !== job) return;
-      toast("Voice is unavailable right now, so Nelle is answering in text.");
-    }
+  if (voiceReady) {
+    const voice = await voiceReady;
     if (id !== job) return;
+    if (!voice) toast("Voice is unavailable right now, so Nelle is answering in text.");
     if (voice) {
       setState("speaking");
       const shown = startReveal(message.body, data.response, voice.words);

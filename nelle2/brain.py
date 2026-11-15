@@ -14,6 +14,7 @@ from collections import deque
 from dataclasses import dataclass
 from typing import Protocol
 
+from calc import Calculation, calculate
 from commands import UNKNOWN_REPLY, looks_like_command, match_command
 from emotion import DEFAULT_VOICE_STYLE, EMOTIONS, VOICE_STYLES, EmotionReply, EmotionSmoother, parse_reply
 
@@ -58,8 +59,9 @@ REPLY_SCHEMA = {
 @dataclass(frozen=True)
 class ChatResult:
     reply: EmotionReply  # smoothed: what the avatar and voice should show
-    source: str  # "claude", "offline" or "command"
+    source: str  # "claude", "offline", "command" or "calc"
     url: str | None = None
+    calc: Calculation | None = None
 
 
 class ConversationMemory:
@@ -195,6 +197,13 @@ class Brain:
                 reply = self.smoother.update(EmotionReply("casual", 0.35, action.reply, "calm"))
                 self._remember(message, reply.response)
                 return ChatResult(reply, "command", action.url)
+
+        calc = calculate(message)
+        if calc is not None:
+            # exact arithmetic: never let a language model guess at a sum
+            reply = self.smoother.update(EmotionReply("curious", 0.4, calc.reply(), "steady"))
+            self._remember(message, reply.response)
+            return ChatResult(reply, "calc", calc=calc)
 
         self.memory.add("user", message)
         source = self.provider.name

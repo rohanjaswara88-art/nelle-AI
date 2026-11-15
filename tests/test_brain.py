@@ -71,3 +71,10 @@ def test_reset_clears_memory_and_mood():
     brain.respond("I'm so sad", NOW)
     brain.reset()
     assert len(brain.memory) == 0 and brain.smoother.current is None
+
+
+def test_arithmetic_is_answered_exactly_without_the_model():
+    result = Brain(BrokenProvider()).respond("what is 23 * 47", NOW)
+    assert result.source == "calc"
+    assert result.calc.result == "1,081"
+    assert result.reply.response == "23 times 47 is 1,081."

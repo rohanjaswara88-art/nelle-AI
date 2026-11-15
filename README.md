@@ -8,6 +8,8 @@ Nelle is an AI you talk to in the browser. She lives inside a crystal ball of cr
 
 ![Nelle speaking: the rim swells with her voice](docs/screenshots/speaking.jpg)
 
+![Calculation: 23 × 47 lands in the ball and counts up to 1,081](docs/screenshots/calculation.jpg)
+
 | Idle | Excited | Disappointed | Phone |
 |---|---|---|---|
 | ![Idle](docs/screenshots/idle.jpg) | ![Excited](docs/screenshots/excited.jpg) | ![Disappointed](docs/screenshots/disappointed.jpg) | ![Phone](docs/screenshots/mobile.jpg) |
@@ -20,6 +22,7 @@ Nelle is an AI you talk to in the browser. She lives inside a crystal ball of cr
 - **Reacts to you.** Sending a message swirls the dust up from below. Listening sends slow rings out into the fog. Hovering or clicking the ball stirs it too.
 - **Speaks with one voice.** She uses a single neural voice (edge-tts `en-US-AvaNeural`) with small rate and pitch changes per emotion. The audio's loudness swells the rim and gently pulses the ball, and emphasised words fire sparks along the rim.
 - **Can be interrupted.** Press Esc or the stop button, or send a new message. The audio and the ball's speaking motion stop cleanly, and the unspoken rest of the reply is dimmed.
+- **Does maths exactly, and shows it.** Ask "what is 23 × 47", "15% of 200" or "the square root of 144 plus 8" and the server works it out exactly (`calc.py` parses it with `ast` and allows only numbers, + − × ÷ %, powers and square roots, so nothing you type is ever executed). While she works it out, maths symbols orbit the ball. Then the numbers from your question fly into it one by one, the ball flares, and the answer counts up in its centre.
 - **Still does the old commands.** "open YouTube", "search Google for …", "what's the time" work from the chat. A sentence like "I had a hard time today" goes to the AI, not the clock.
 
 ## Run it
@@ -71,7 +74,7 @@ pip install -r requirements-dev.txt
 python -m pytest
 ```
 
-Tests cover emotion parsing and validation (bad JSON, unknown emotions, out-of-range intensity, missing fields), mood smoothing, memory, offline fallback, telling commands apart from ordinary sentences, the API endpoints, voice delivery per emotion, and every original command. GitHub Actions runs them on every push and pull request, with no API key needed.
+Tests cover arithmetic (including unsafe input), emotion parsing and validation (bad JSON, unknown emotions, out-of-range intensity, missing fields), mood smoothing, memory, offline fallback, telling commands apart from ordinary sentences, the API endpoints, voice delivery per emotion, and every original command. GitHub Actions runs them on every push and pull request, with no API key needed.
 
 ## Project structure
 
@@ -80,10 +83,11 @@ nelle2/
   server.py    FastAPI app: UI, /api/chat, /api/tts, /api/reset
   brain.py     short-term memory, Claude call, offline fallback
   emotion.py   emotion JSON parsing, validation and smoothing
+  calc.py      exact, safe arithmetic for maths questions
   voice.py     edge-tts voice with per-emotion delivery and word timings
   commands.py  the original command matcher (open, search, time)
   nelle.py     the original terminal voice assistant (still works)
-  web/         index.html, styles.css, app.js, stage.js, crystal.js, hud.js, voice.js
+  web/         index.html, styles.css, app.js, stage.js, crystal.js, calculation.js, hud.js, voice.js
 tests/         pytest tests
 docs/          screenshots
 ```

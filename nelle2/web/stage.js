@@ -48,6 +48,7 @@ export class Stage {
     this.time = 0;
     this.nextBeat = 0;
     this.thinkAngle = TOP;
+    this.calculating = false;
     this.pulses = [];
     this.color = [...COLORS.neutral];
     this.values = Object.fromEntries(KEYS.map((key, i) => [key, NEUTRAL[i + 1]]));
@@ -145,6 +146,21 @@ export class Stage {
     }
   }
 
+  /** Working out a sum: the dust quickens and the rim keeps sparking. */
+  setCalculating(on) {
+    this.calculating = on;
+    this.nextBeat = Math.min(this.nextBeat, this.time + 0.1);
+  }
+
+  /** The numbers of a calculation landed in the ball: it flares and swirls once. */
+  absorb() {
+    this.calculating = false;
+    if (!this.ball) return;
+    this.ball.surge(1);
+    this.ball.kick(0, 0, 1);
+    for (let i = 0; i < 3; i++) this.ball.arc((i / 3) * Math.PI * 2 + rand(-0.3, 0.3), 1.2);
+  }
+
   /** A sharp flicker, used when Nelle is interrupted or her memory is cleared. */
   jolt(strength = 1) {
     if (!this.ball) return;
@@ -205,6 +221,11 @@ export class Stage {
       goal.glow *= 1.12;
       goal.dustSpeed *= 0.8;
     }
+    if (this.calculating) {
+      goal.dustSpeed *= 1.6;
+      goal.sway += 0.3;
+      goal.sparks += 0.2;
+    }
     for (const key of KEYS) this.values[key] = ease(this.values[key], goal[key], 1.6, dt);
 
     // the voice: loudness swells the rim and gently breathes the ball's size
@@ -220,7 +241,13 @@ export class Stage {
     this.ball.setColor(this.color);
 
     if (this.time < this.nextBeat || this.reducedMotion) return;
-    if (state === "thinking") {
+    if (this.calculating) {
+      // two arcs race round the rim in opposite directions while she works the sum out
+      this.thinkAngle -= 1.1;
+      this.ball.arc(this.thinkAngle, 1);
+      this.ball.arc(-this.thinkAngle + Math.PI, 0.8);
+      this.nextBeat = this.time + 0.22;
+    } else if (state === "thinking") {
       // arcs chase each other round the rim while she thinks
       this.thinkAngle -= 0.9;
       this.ball.arc(this.thinkAngle, 0.9);

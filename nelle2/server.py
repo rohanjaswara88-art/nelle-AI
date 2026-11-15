@@ -59,7 +59,13 @@ def create_app(brain: Brain | None = None) -> FastAPI:
             raise HTTPException(status_code=422, detail="Message is empty")
         now = datetime.datetime.now().strftime("%I:%M %p")
         result = b.respond(message, now)
-        return {**result.reply.to_dict(), "source": result.source, "url": result.url, "memory": len(b.memory)}
+        return {
+            **result.reply.to_dict(),
+            "source": result.source,
+            "url": result.url,
+            "calc": result.calc.to_dict() if result.calc else None,
+            "memory": len(b.memory),
+        }
 
     @app.post("/api/reset")
     def reset() -> dict:

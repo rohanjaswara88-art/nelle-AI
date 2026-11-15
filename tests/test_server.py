@@ -34,3 +34,10 @@ def test_reset_empties_memory():
     assert client.get("/api/status").json()["memory"] == 2
     client.post("/api/reset")
     assert client.get("/api/status").json() == {"provider": "offline", "memory": 0}
+
+
+def test_chat_returns_calculation_details():
+    data = make_client().post("/api/chat", json={"message": "what is 15% of 200"}).json()
+    assert data["source"] == "calc"
+    assert data["calc"] == {"tokens": ["15%", "of", "200"], "expression": "15% of 200", "result": "30", "value": 30.0}
+    assert make_client().post("/api/chat", json={"message": "hello"}).json()["calc"] is None
