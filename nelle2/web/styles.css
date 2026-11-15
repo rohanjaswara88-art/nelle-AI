@@ -257,6 +257,100 @@ body[data-state="speaking"] .dot { background: #ffd6f3; animation-duration: 0.6s
   opacity: 1;
 }
 
+.pill .slash {
+  transition: opacity 0.3s;
+}
+
+.pill[aria-pressed="true"] .slash {
+  opacity: 0;
+}
+
+.pill.is-loading {
+  animation: breathe 1.2s ease-in-out infinite;
+}
+
+/* ---------- camera preview and gesture debug ---------- */
+
+.cam {
+  position: fixed;
+  left: 20px;
+  bottom: 20px;
+  width: 160px;
+  padding: 0;
+  border-radius: 16px;
+  overflow: hidden;
+  cursor: pointer;
+  animation: fade-in 0.6s var(--ease);
+}
+
+.cam[hidden] {
+  display: none;
+}
+
+.cam canvas {
+  display: block;
+  width: 160px;
+  height: 120px;
+  background: rgba(10, 2, 16, 0.6);
+}
+
+.cam-label {
+  position: absolute;
+  left: 9px;
+  bottom: 7px;
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+
+.cam.video-off .cam-label::after {
+  content: " · video hidden";
+}
+
+.gesture-debug {
+  position: fixed;
+  left: 20px;
+  top: 84px;
+  width: 210px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink);
+  z-index: 5;
+}
+
+.gesture-debug .title {
+  margin: 0 0 8px;
+  font-size: 9.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.gesture-debug pre {
+  margin: 0;
+  font: inherit;
+  line-height: 1.5;
+}
+
+.gesture-debug ol {
+  margin: 8px 0;
+  padding: 0;
+  list-style: none;
+  color: var(--accent);
+}
+
+.gesture-debug button {
+  width: 100%;
+  padding: 6px;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  background: transparent;
+  font-size: 11px;
+}
+
 /* ---------- conversation panel ---------- */
 
 .panel {
@@ -576,6 +670,9 @@ body.started .starters {
   #ball { top: 56px; right: 0; bottom: calc(46dvh + 12px); }
   .hint { display: none; }
   #composer { margin-bottom: 12px; }
+  .cam { left: auto; right: 12px; top: 64px; bottom: auto; width: 112px; }
+  .cam canvas { width: 112px; height: 84px; }
+  .gesture-debug { top: 64px; left: 12px; width: 180px; font-size: 10px; }
   .starters { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
   .starters button { flex: none; }
 }

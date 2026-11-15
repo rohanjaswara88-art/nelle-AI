@@ -28,6 +28,10 @@ const NEUTRAL = MOODS.neutral;
 const TOP = Math.PI / 2;
 const SEARCH_AFTER = 1.4; // seconds of thinking before the ball starts "searching"
 const PING_EVERY = 1.1;
+const GESTURE_HOLD = 2.5; // seconds a gesture shape stays up
+const HAND_REACH = 1.25; // the camera frame's edges map to this far out in ball radii
+const KICK_SPEED = 0.6; // hand speed (ball radii per second) before a flick also jolts the dust
+const KICK_EVERY = 0.22;
 
 const rand = (a, b) => a + Math.random() * (b - a);
 const ease = (current, target, rate, dt) => current + (target - current) * (1 - Math.exp(-rate * dt));
@@ -47,6 +51,9 @@ export class Stage {
     this.state = "idle";
     this.emotion = "neutral";
     this.intensity = 0.4;
+    this.override = null; // { emotion, intensity, until }: a brief mood from a gesture
+    this.timeline = []; // [{ at, run }]: small timed steps for gesture animations
+    this.lastKick = 0;
     this.level = 0;
     this.voice = 0;
     this.time = 0;
@@ -172,6 +179,98 @@ export class Stage {
     this.ball.arc(-TOP + rand(-0.5, 0.5), 1.1);
   }
 
+  // ---------- hand gestures ----------
+
+  /** True while a gesture animation is playing; new gestures are ignored until it ends. */
+  get gestureBusy() {
+    return this.mind.busy;
+  }
+
+  /** Run `fn` after `delay` seconds of animation time. */
+  later(delay, run) {
+    this.timeline.push({ at: this.time + delay, run });
+  }
+
+  runTimeline() {
+    if (!this.timeline.length) return;
+    const due = this.timeline.filter((step) => step.at <= this.time);
+    this.timeline = this.timeline.filter((step) => step.at > this.time);
+    for (const step of due) step.run();
+  }
+
+  /** Two fingers: the points bloom into a flower, petal after petal, while arcs circle the rim. */
+  bloom() {
+    if (!this.mind.play("flower", { from: "centre", drawTime: 1.2, hold: GESTURE_HOLD, glow: 1.25 })) return false;
+    if (!this.ball) return true;
+    this.ball.surge(0.7);
+    const arcs = this.reducedMotion ? 2 : 7;
+    for (let i = 0; i < arcs; i++) {
+      this.later(i * (1.2 / arcs), () => this.ball.arc(TOP - (i / arcs) * Math.PI * 2, 0.7));
+    }
+    return true;
+  }
+
+  /** Five fingers: a smiling face, a brief happy mood and one playful kick to the dust. */
+  smile() {
+    if (!this.mind.play("smile", { drawTime: 0.9, hold: GESTURE_HOLD, glow: 1.2 })) return false;
+    const hold = this.reducedMotion ? 2 : 0.9 + GESTURE_HOLD;
+    this.override = { emotion: "happy", intensity: 0.85, until: this.time + hold };
+    if (!this.ball) return true;
+    this.ball.kick(rand(-0.3, 0.3), -0.4, this.reducedMotion ? 0.35 : 0.85);
+    this.ball.surge(0.6);
+    this.ball.arc(TOP + rand(-0.4, 0.4), 1);
+    return true;
+  }
+
+  /** Thumbs up: "HI BRO" spelled out with particles streaming up from the dust, then scattering back. */
+  hiBro() {
+    const options = { from: "dust", drawTime: 1.3, hold: GESTURE_HOLD, glow: 1.45, scatter: true };
+    if (!this.mind.play("text:HI BRO", options)) return false;
+    if (!this.ball) return true;
+    this.ball.kick(0, -0.6, this.reducedMotion ? 0.3 : 0.7); // the dust stirs as the letters rise out of it
+    this.ball.surge(0.8);
+    this.later(1.3, () => {
+      this.ball.arc(TOP + 0.5, 1.1);
+      this.ball.arc(TOP - 0.5, 1.1);
+    });
+    if (!this.reducedMotion) this.later(1.3 + GESTURE_HOLD, () => this.ball.kick(0, 0.2, 0.8)); // scatter
+    return true;
+  }
+
+  /**
+   * Hand movement, every detection frame: `move` is { x, y, vx, vy, wave } in 0..1 screen space
+   * (already mirrored) or null when the hand leaves. The dust is brushed the way the hand moves and
+   * leans toward it; a quick flick jolts it and a wave sends ripples across.
+   */
+  handMove(move) {
+    if (!this.ball || !move) return;
+    const x = (move.x - 0.5) * 2 * HAND_REACH;
+    const y = (0.5 - move.y) * 2 * HAND_REACH;
+    const vx = move.vx * 2 * HAND_REACH;
+    const vy = -move.vy * 2 * HAND_REACH;
+    const speed = Math.hypot(vx, vy);
+    const calm = this.reducedMotion ? 0.4 : 1;
+    this.ball.push(x, y, vx * calm, vy * calm, Math.min(1, speed * 0.6)); // only movement stirs; stillness just leans
+    this.ball.lean(x * 0.9, y * 0.6, 0.8 * calm);
+    if (speed > KICK_SPEED && this.time - this.lastKick > KICK_EVERY) {
+      this.lastKick = this.time;
+      const lead = 0.25; // jolt a little ahead of the hand, so the dust is thrown the way it moves
+      this.ball.kick(x + (vx / speed) * lead, y + (vy / speed) * lead, Math.min(0.9, speed * 0.3) * calm);
+    }
+    if (move.wave) this.wave(Math.sign(vx) || 1);
+  }
+
+  /** A wave of the hand: ripples roll across the dust and out through the fog. */
+  wave(direction = 1) {
+    if (!this.ball) return;
+    this.ripples.push(this.time);
+    this.ball.surge(0.5);
+    const steps = this.reducedMotion ? 1 : 3;
+    for (let i = 0; i < steps; i++) {
+      this.later(i * 0.12, () => this.ball.kick(direction * (-0.6 + i * 0.6), 0, 0.55));
+    }
+  }
+
   /** A sharp flicker, used when Nelle is interrupted or her memory is cleared. */
   jolt(strength = 1) {
     if (!this.ball) return;
@@ -210,12 +309,15 @@ export class Stage {
 
   /** Blend the ball's settings toward the current mood and state. */
   animate(dt) {
-    const k = 0.35 + 0.65 * this.intensity;
-    const target = mix(COLORS.neutral, COLORS[this.emotion], k);
+    if (this.override && this.time > this.override.until) this.override = null;
+    const shown = this.override ?? this; // a gesture's brief mood wins until it runs out
+    const k = 0.35 + 0.65 * shown.intensity;
+    const target = mix(COLORS.neutral, COLORS[shown.emotion], k);
     this.color = mix(this.color, target, 1 - Math.exp(-1.5 * dt));
 
     const state = this.state;
-    const mood = MOODS[this.emotion];
+    const mood = MOODS[shown.emotion];
+    this.runTimeline();
     const goal = Object.fromEntries(KEYS.map((key, i) => [key, NEUTRAL[i + 1] + (mood[i + 1] - NEUTRAL[i + 1]) * k]));
     if (state === "thinking") {
       goal.crackle += 0.15;

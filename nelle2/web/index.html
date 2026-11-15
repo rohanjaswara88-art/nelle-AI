@@ -38,6 +38,10 @@
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4z" /><path class="waves" d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12" /></svg>
           <span>Voice off</span>
         </button>
+        <button id="camera-toggle" class="glass pill" type="button" aria-pressed="false" title="Let Nelle see your hand through the camera. Video stays on this device.">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="7" width="13" height="10" rx="2" /><path d="M16 11l5-3v8l-5-3" /><path class="slash" d="M4 4l16 16" /></svg>
+          <span>Camera off</span>
+        </button>
         <button id="reset" class="glass pill" type="button" title="Forget this conversation">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.4-5.7M4 4v4h4" /></svg>
           <span>Reset</span>
@@ -70,6 +74,11 @@
       </form>
       <p class="hint mono">ENTER send · ESC interrupt · MIC talk</p>
     </main>
+
+    <div id="cam" class="cam glass" hidden title="Click to hide or show the video">
+      <canvas aria-label="Camera preview with your hand's tracking points"></canvas>
+      <span class="cam-label mono">hand</span>
+    </div>
 
     <div id="toast" class="glass" role="alert"></div>
     <script type="module" src="/static/app.js"></script>
