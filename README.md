@@ -24,6 +24,30 @@ Nelle is an AI you talk to in the browser. She lives inside a crystal ball of cr
 - **Can be interrupted.** Press Esc or the stop button, or send a new message. The audio and the ball's speaking motion stop cleanly, and the unspoken rest of the reply is dimmed.
 - **Gets sums right.** Plain arithmetic ("what is 23 × 47", "15% of 200") is worked out exactly on the server by `calc.py`, not guessed by the AI. It parses with `ast` and allows only numbers, + − × ÷ %, powers and square roots, so nothing you type is ever executed.
 - **Still does the old commands.** "open YouTube", "search Google for …", "what's the time" work from the chat. A sentence like "I had a hard time today" goes to the AI, not the clock.
+- **Sees your hand (optional).** Turn on **Camera** and Nelle watches one hand through your webcam. See [Hand gestures](#hand-gestures).
+
+## Hand gestures
+
+![Gesture animations: the flower blooming petal by petal, the smile, and HI BRO rising out of the dust and scattering back](docs/screenshots/gestures.png)
+
+Press the **Camera** pill in the top bar (it stays off until you turn it on, and the choice is remembered). A small mirrored preview appears in the bottom-left corner with your hand's 21 tracking points drawn in pink; click it to hide the video and keep just the points.
+
+| Show | Nelle |
+|---|---|
+| ✌️ Two fingers (index and middle up, ring and pinky down) | The constellation blooms into a flower, petal after petal, while arcs circle the rim. |
+| 🖐️ All five fingers, spread | A smiling face with happy ^ ^ eyes; her mood turns happy for a moment and the dust gets one playful kick. |
+| 👍 Thumbs up | "HI BRO" is spelled out with pink particles streaming up from the dust, then they scatter back. |
+| 👋 Move your hand | The dust is brushed the way your hand moves and leans toward it. A quick wave sends ripples across. |
+
+Hold a pose still for about a fifth of a second. Each gesture fires once per showing: lower your hand (or change pose), then show it again; the same gesture can't repeat within 2.5 seconds. Gestures are ignored while one is already playing, and for a moment after you type, so hands on the keyboard don't set anything off. Each shape lasts about 2.5 seconds, then the ball goes back to the topic shape (or to thinking). With *reduce motion* turned on in your system settings, the effects are shorter and calmer.
+
+**Privacy.** Hand tracking runs entirely in your browser with [MediaPipe Hand Landmarker](https://ai.google.dev/edge/mediapipe/solutions/vision/hand_landmarker). Camera frames go from the video element straight into the on-device model; they are never uploaded, never sent to Nelle's server and never saved. The only network requests are downloading the MediaPipe library (jsDelivr) and the hand model file (Google's model storage) when you first turn the camera on. Turning the camera off stops it immediately.
+
+Needs Chrome, Edge or another browser with camera access, over `localhost` or HTTPS. Tracking runs on every other frame (about 30 a second) on the GPU where possible, and drops to every third frame on a slow machine so the animation stays smooth.
+
+**Debugging.** Open `http://127.0.0.1:8000/?debug=gestures` for a panel with each finger's state (extended, folded or unsure), the detected pose, its confidence, detections per second and the time each one takes. **Copy landmarks** copies the current hand as a JSON test fixture.
+
+**Adding a gesture.** Write a pose rule in `web/poses.js`, add `{ name, detect }` to `GESTURES` in `web/gestures.js`, and map the name to an animation in `GESTURE_ACTIONS` in `web/app.js`. Shapes for the constellation go in `GESTURE_SHAPES` in `web/constellation.js`; new words just need their letters in the stroke font, `web/strokefont.js`.
 
 ## Run it
 
@@ -56,6 +80,8 @@ stage.js          fog, mood and motion                  ├─► emotion.py  pa
 crystal.js        the plasma ball (WebGL)               └─► topics.py   what the exchange is about
 constellation.js  topic shapes in the ball   ◄── /api/tts ── voice.py    edge-tts audio + word timings
 voice.js          audio playback + speech input
+gestures.js       camera + MediaPipe hand tracking (in the browser only)
+poses.js          pose rules, debouncing and hand-movement smoothing
 ```
 
 1. **Listen.** You type, or speak (the browser's speech recognition).
@@ -74,7 +100,17 @@ pip install -r requirements-dev.txt
 python -m pytest
 ```
 
-Tests cover arithmetic (including unsafe input), emotion parsing and validation (bad JSON, unknown emotions, out-of-range intensity, missing fields), mood smoothing, memory, offline fallback, telling commands apart from ordinary sentences, the API endpoints, voice delivery per emotion, and every original command. GitHub Actions runs them on every push and pull request, with no API key needed.
+Tests cover arithmetic (including unsafe input), emotion parsing and validation (bad JSON, unknown emotions, out-of-range intensity, missing fields), mood smoothing, memory, offline fallback, telling commands apart from ordinary sentences, the API endpoints, voice delivery per emotion, and every original command.
+
+The hand-pose rules have their own tests, run with Node's built-in test runner (Node 22 or newer):
+
+```bash
+node --test "tests/js/*.test.mjs"
+```
+
+They check each pose against 90 landmark fixtures: both hands, tilted, near and far, with positives for every gesture and near misses that must not fire (three fingers, a half-bent finger, fingers held together, thumbs down, a sideways thumb, and more). They also cover the debouncing (six frames, confidence, cooldown, release), the movement filter's dead zone and wave detection, and the stroke font. The fixtures are generated with realistic hand proportions by `tests/js/make-fixtures.mjs`; hands recorded from a real camera can be added to `tests/js/fixtures/recorded.json` with the debug panel's **Copy landmarks** button.
+
+GitHub Actions runs both suites on every push and pull request, with no API key needed.
 
 ## Project structure
 
@@ -88,8 +124,9 @@ nelle2/
   voice.py     edge-tts voice with per-emotion delivery and word timings
   commands.py  the original command matcher (open, search, time)
   nelle.py     the original terminal voice assistant (still works)
-  web/         index.html, styles.css, app.js, stage.js, crystal.js, constellation.js, voice.js
-tests/         pytest tests
+  web/         index.html, styles.css, app.js, stage.js, crystal.js, constellation.js, voice.js,
+               gestures.js, poses.js, strokefont.js, gesture-debug.js
+tests/         pytest tests; tests/js has the Node tests for the hand-pose rules
 docs/          screenshots
 ```
 
@@ -97,4 +134,4 @@ The original assistant still runs on its own with `python nelle2/nelle.py` (Wind
 
 ## Tech
 
-Python · FastAPI · Claude API · edge-tts · WebGL2 (ogl) · Canvas 2D · Web Audio · Web Speech API · pytest
+Python · FastAPI · Claude API · edge-tts · WebGL2 (ogl) · Canvas 2D · Web Audio · Web Speech API · MediaPipe Hand Landmarker · pytest · node:test
