@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Nelle</title>
+    <meta name="description" content="Nelle, an emotionally aware AI that lives in a crystal ball of plasma." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400&family=Space+Grotesk:wght@300;400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body data-state="idle">
+    <canvas id="fog" aria-hidden="true"></canvas>
+    <div id="ball" aria-hidden="true"></div>
+    <canvas id="mind" aria-hidden="true"></canvas>
+    <div class="grain" aria-hidden="true"></div>
+    <div class="vignette" aria-hidden="true"></div>
+
+    <header class="topbar">
+      <div class="brand glass">
+        <span class="logo">NELLE</span>
+        <span class="sub">[ plasma interface ]</span>
+      </div>
+      <div class="status glass" role="status">
+        <i class="dot" aria-hidden="true"></i>
+        <span id="status-state">Idle</span>
+        <span class="sep" aria-hidden="true">·</span>
+        <span id="mood" class="mood">Neutral</span>
+        <span class="sep" aria-hidden="true">/</span>
+        <span id="provider" class="mono">…</span>
+      </div>
+      <div class="actions">
+        <button id="speak-toggle" class="glass pill" type="button" aria-pressed="false" title="Speak every reply, not only voice questions">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4z" /><path class="waves" d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12" /></svg>
+          <span>Voice off</span>
+        </button>
+        <button id="reset" class="glass pill" type="button" title="Forget this conversation">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.4-5.7M4 4v4h4" /></svg>
+          <span>Reset</span>
+        </button>
+      </div>
+    </header>
+
+    <main class="panel glass">
+      <div class="panel-head">
+        <h1>Conversation</h1>
+        <span id="memory" class="mono">MEM 00/12</span>
+      </div>
+      <ol id="log" aria-live="polite"></ol>
+      <div id="starters" class="starters" aria-label="Things to ask">
+        <button type="button">Explain recursion simply</button>
+        <button type="button">How far away is Mars?</button>
+        <button type="button">Tell me a joke</button>
+        <button type="button">What's 18% of 250?</button>
+      </div>
+      <form id="composer" autocomplete="off">
+        <label class="sr-only" for="input">Message Nelle</label>
+        <textarea id="input" rows="1" maxlength="2000" placeholder="Say something to Nelle…"></textarea>
+        <button id="mic" type="button" class="icon" aria-label="Talk to Nelle">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21" /></svg>
+        </button>
+        <button id="send" type="submit" class="icon send" aria-label="Send message">
+          <svg class="arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6" /></svg>
+          <svg class="square" viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="1.5" /></svg>
+        </button>
+      </form>
+      <p class="hint mono">ENTER send · ESC interrupt · MIC talk</p>
+    </main>
+
+    <div id="toast" class="glass" role="alert"></div>
+    <script type="module" src="/static/app.js"></script>
+  </body>
+</html>

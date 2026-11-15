@@ -1,4 +1,11 @@
+# Web app: python nelle2/server.py
+fastapi>=0.110
+uvicorn>=0.29
+edge-tts>=7.3
+anthropic>=2.0
+python-dotenv>=1.0
+
+# Original voice loop: python nelle2/nelle.py
 SpeechRecognition>=3.10
 pyttsx3>=2.90
 PyAudio>=0.2.14
-edge-tts>=6.1

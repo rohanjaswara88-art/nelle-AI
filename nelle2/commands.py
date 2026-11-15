@@ -3,6 +3,7 @@
 Keeping this logic pure (text in, action out) means it can be tested without any hardware.
 """
 
+import re
 from dataclasses import dataclass
 from urllib.parse import quote
 
@@ -13,6 +14,16 @@ GOOGLE_SEARCH = "https://www.google.com/search?q="
 YOUTUBE_SEARCH = "https://www.youtube.com/results?search_query="
 
 STOP_WORDS = ("stop", "exit", "shutdown")
+UNKNOWN_REPLY = "Sorry sir, I don't understand that command."
+
+# In free-form chat, only messages shaped like a command go to `match_command`, so
+# "I had a hard time today" reaches the language model instead of the clock.
+COMMAND_PATTERN = re.compile(
+    r"^\s*(?:hey nelle[, ]+|nelle[, ]+)?(?:please\s+)?"
+    r"(?:open (?:youtube|google|chat)|search (?:youtube|google) for\b"
+    r"|what(?:'s| is) the time\b|what time is it\b|tell me the time\b)",
+    re.IGNORECASE,
+)
 
 
 @dataclass(frozen=True)
@@ -59,4 +70,9 @@ def match_command(command: str, now: str) -> Action:
         )
     if any(word in command for word in STOP_WORDS):
         return Action("Shutting down Jarvis. Goodbye sir.", stop=True)
-    return Action("Sorry sir, I don't understand that command.")
+    return Action(UNKNOWN_REPLY)
+
+
+def looks_like_command(text: str) -> bool:
+    """True when a chat message is clearly one of the assistant's commands."""
+    return bool(COMMAND_PATTERN.match(text))
