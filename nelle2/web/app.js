@@ -1,4 +1,4 @@
-// Emotion controller: turns each reply into the shadow's mood and motion, the HUD, the voice and the chat.
+// Emotion controller: turns each reply into the ball's mood and motion, the HUD, the voice and the chat.
 import { Hud } from "./hud.js";
 import { Stage } from "./stage.js";
 import { SpeechInput, VoicePlayer } from "./voice.js";
@@ -29,7 +29,7 @@ const MEMORY_SIZE = 12;
 const TEXT_WORDS_PER_SECOND = 4.4;
 const SETTLE_MS = 1800;
 
-const stage = new Stage($("#stage"));
+const stage = new Stage($("#fog"), $("#ball"));
 const hud = new Hud($("#hud"), $("#lexicon"));
 const player = new VoicePlayer();
 const speech = new SpeechInput();
@@ -176,7 +176,7 @@ function interrupt() {
   finishReveal(true);
   stage.setLevel(0);
   setState("idle");
-  if (wasBusy) stage.glitch(0.8);
+  if (wasBusy) stage.jolt(0.8);
 }
 
 async function postJson(url, body, signal) {
@@ -198,6 +198,7 @@ async function send(text, viaVoice = false) {
   const wantsVoice = viaVoice || speakReplies;
   if (wantsVoice) player.unlock(); // still inside the click/keypress, so audio is allowed
   addMessage("user", text);
+  stage.receive(); // the ball takes the message in
   els.input.value = "";
   autosize();
   setState("thinking");
@@ -319,7 +320,7 @@ els.reset.addEventListener("click", async () => {
   els.log.replaceChildren();
   setMood({ emotion: "neutral", intensity: 0.4, voiceStyle: "calm" });
   setMemory(0);
-  stage.glitch(1);
+  stage.jolt(1);
 });
 
 async function boot() {

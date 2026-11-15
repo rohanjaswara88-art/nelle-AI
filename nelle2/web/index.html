@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Nelle</title>
-    <meta name="description" content="Nelle, an emotionally aware AI that lives as a shadow in blue fog." />
+    <meta name="description" content="Nelle, an emotionally aware AI that lives in a crystal ball of plasma." />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -14,7 +14,8 @@
     <link rel="stylesheet" href="/static/styles.css" />
   </head>
   <body data-state="idle">
-    <canvas id="stage" aria-hidden="true"></canvas>
+    <canvas id="fog" aria-hidden="true"></canvas>
+    <div id="ball" aria-hidden="true"></div>
     <div class="grain" aria-hidden="true"></div>
     <div class="vignette" aria-hidden="true"></div>
     <div id="hud" aria-hidden="true"></div>
@@ -23,7 +24,7 @@
     <header class="topbar">
       <div class="brand glass">
         <span class="logo">NELLE</span>
-        <span class="sub">[ shadow interface ]</span>
+        <span class="sub">[ plasma interface ]</span>
       </div>
       <div class="status glass" role="status">
         <i class="dot" aria-hidden="true"></i>

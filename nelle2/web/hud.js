@@ -1,4 +1,4 @@
-// HUD: bracketed labels that float beside the shadow, and the emotion lexicon below it.
+// HUD: bracketed labels that float around the ball, and the emotion lexicon below it.
 
 const GLYPHS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789/<>[]#";
 const EMOTIONS = [
@@ -6,15 +6,15 @@ const EMOTIONS = [
   "disappointed", "nervous", "casual", "playful", "thinking", "concerned", "neutral",
 ];
 
-// label key -> [index, anchor, offset x, offset y]
+// label key -> [index, anchor, offset x, offset y] (offsets push the label away from the rim)
 const LABELS = {
-  emotion: ["01", "crown", 70, -40],
-  intensity: ["02", "brow", -210, -30],
-  state: ["03", "throat", -250, 10],
-  voice: ["04", "shoulder", 90, -10],
-  memory: ["05", "chest", -280, 120],
+  emotion: ["01", "ne", 34, -46],
+  intensity: ["02", "nw", -190, -40],
+  state: ["03", "w", -170, -10],
+  voice: ["04", "e", 40, -10],
+  memory: ["05", "sw", -190, 20],
 };
-const MARKERS = ["temple", "throat", "shoulder"];
+const MARKERS = ["rimTop", "rimLeft", "rimRight"];
 
 export class Hud {
   constructor(root, lexiconRoot) {
@@ -75,7 +75,7 @@ export class Hud {
     for (const [key, [, anchor, ox, oy]] of Object.entries(LABELS)) {
       const label = this.labels[key];
       const [ax, ay] = anchors[anchor];
-      const target = this.clamp(label.el, [ax + ox * (narrow ? 0.55 : 1), ay + oy * (narrow ? 0.7 : 1)], narrow);
+      const target = this.clamp(label.el, [ax + ox * (narrow ? 0.5 : 1), ay + oy * (narrow ? 0.6 : 1)], narrow);
       label.pos = follow(label.pos, target, dt, 2.5);
       label.el.style.transform = `translate(${label.pos[0].toFixed(1)}px, ${label.pos[1].toFixed(1)}px)`;
     }
@@ -96,7 +96,6 @@ export class Hud {
     });
 
     // while thinking, the lexicon flickers as if searching for the right feeling
-    document.body.classList.toggle("searching", state === "thinking");
     if (state === "thinking" && performance.now() > this.flickerAt) {
       this.flickerAt = performance.now() + 140;
       for (const word of this.words) word.el.classList.toggle("flicker", Math.random() < 0.18);
