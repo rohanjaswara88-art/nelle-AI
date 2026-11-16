@@ -2,21 +2,23 @@
 
 [![CI](https://github.com/rohanjaswara88-art/nelle-AI/actions/workflows/ci.yml/badge.svg)](https://github.com/rohanjaswara88-art/nelle-AI/actions/workflows/ci.yml)
 
-Nelle is an AI you talk to in the browser. She lives inside a crystal ball of crackling pink plasma and drifting dust. She reads the whole conversation, decides how she feels about it, and shows that feeling: in the ball's colour, crackle and sparks, in the fog around it and in the tone of her voice. Inside the ball, points of light join up into a picture of what you are talking about: `</>` for code, a heart for love, Saturn for space. When you send a message, the ball swirls as it takes it in. Ask by voice and she answers out loud, with the rim swelling and sparking in time with her words. Type, and she answers in text while the ball stirs gently in the background.
+Nelle is an AI you talk to in the browser. She lives inside a crystal ball of crackling lime plasma and drifting dust, on a black, lightly fogged stage. She reads the whole conversation, decides how she feels about it, and shows that feeling: in the ball's colour, crackle and sparks, in the fog around it and in the tone of her voice. Inside the ball, points of light join up into a picture of what you are talking about: `</>` for code, a heart for love, Saturn for space. When you send a message, the ball swirls as it takes it in. Ask by voice and she answers out loud, with the rim swelling and sparking in time with her words. Type, and she answers in text while the ball stirs gently in the background.
 
 > Built by [Rohan Jaswara](https://rohanjaswara88-art.github.io/portfolio/), a BCA (AI & ML) student.
 
 ![Nelle answering a coding question: the constellation in the ball forms </>](docs/screenshots/code.jpg)
 
-| Idle | Searching | Love, concerned | Phone |
-|---|---|---|---|
-| ![Idle: a turning network globe](docs/screenshots/idle.jpg) | ![Searching: the points drift and re-link](docs/screenshots/thinking.jpg) | ![A heart for a breakup message, tinted violet with concern](docs/screenshots/love.jpg) | ![Phone](docs/screenshots/mobile.jpg) |
+| Idle | Searching | Love, concerned |
+|---|---|---|
+| ![Idle: a turning network globe](docs/screenshots/idle.jpg) | ![Searching: the points drift and re-link](docs/screenshots/thinking.jpg) | ![A heart for a breakup message, tinted teal-green with concern](docs/screenshots/love.jpg) |
+
+On a phone the conversation becomes a bottom sheet under the ball.
 
 ## What she does
 
 - **Feels the conversation.** Each reply comes back as structured JSON: `{emotion, intensity, response, voiceStyle}`, from 14 emotions (happy, excited, sad, frustrated, confused, curious, surprised, disappointed, nervous, casual, playful, thinking, concerned, neutral). Claude reads the last 12 messages and her current mood, not just keywords.
 - **Doesn't flicker between moods.** A smoother keeps her mood steady: a weak, different emotion is ignored and the current one fades, while a clear new emotion takes over. A repeated emotion blends its intensity instead of jumping.
-- **Shows it in the ball.** Each emotion has its own colour and energy: excited is hot pink with fast dust and lots of sparks, sad and disappointed fade to a dim violet with slow dust settling low, frustrated crackles red, thinking turns violet with arcs chasing round the rim. Changes blend smoothly over about a second.
+- **Shows it in the ball.** Each emotion has its own shade of the lime palette and its own energy: excited is electric yellow-lime with fast dust and lots of sparks, sad and disappointed sink to a dim teal with slow dust settling low, frustrated crackles amber, thinking turns mint with arcs chasing round the rim. Changes blend smoothly over about a second.
 - **Draws the topic.** A constellation of 72 points lives inside the ball. At rest it is a slowly turning network globe. When she answers, the server works out what the exchange is about (`topics.py`, 17 topics) and the points fly into a shape for it, with the lines drawing themselves in: `</>` code, a neural net for AI, Σ maths, an atom for science, Saturn for space, notes for music, a heart for love, a heartbeat for health, a rising chart for money, a storm cloud for weather, a clock for time and history, a leaf for nature, a paper plane for travel, a globe for the web, an open book for writing, a smile for fun and a cup for food. The shape sways in 3D, sparks of thought run along its lines (faster while she speaks), and it all scales with the ball, so it fits any screen.
 - **Shows her thinking.** While she finds an answer, the points let go of their shape and drift through the ball, linking and unlinking with their neighbours as if browsing, while the dust turns into a slow vortex. If the answer takes longer, she starts *searching*: everything moves faster, sparks race along the links and sonar pings ripple out into the fog. When the answer is found, a ripple bursts out of the ball and the points assemble into the topic's shape.
 - **Reacts to you.** Sending a message swirls the dust up from below. Listening sends slow rings out into the fog. Hovering or clicking the ball stirs it too.
@@ -28,24 +30,29 @@ Nelle is an AI you talk to in the browser. She lives inside a crystal ball of cr
 
 ## Hand gestures
 
-![Gesture animations: the flower blooming petal by petal, the smile, and HI BRO rising out of the dust and scattering back](docs/screenshots/gestures.png)
+| Two fingers | Five fingers | Thumbs up |
+|---|---|---|
+| ![A flower blooming petal by petal](docs/screenshots/gesture-flower.png) | ![A smiling face, the ball turning happy](docs/screenshots/gesture-smile.png) | ![HI BRO spelled in particles](docs/screenshots/gesture-hibro.png) |
 
-Press the **Camera** pill in the top bar (it stays off until you turn it on, and the choice is remembered). A small mirrored preview appears in the bottom-left corner with your hand's 21 tracking points drawn in pink; click it to hide the video and keep just the points.
+Press the **Camera** pill in the top bar (it stays off until you turn it on, and the choice is remembered). A small mirrored preview appears in the bottom-left corner with your hand's 21 tracking points drawn in lime; click it to hide the video and keep just the points.
 
 | Show | Nelle |
 |---|---|
 | ✌️ Two fingers (index and middle up, ring and pinky down) | The constellation blooms into a flower, petal after petal, while arcs circle the rim. |
 | 🖐️ All five fingers, spread | A smiling face with happy ^ ^ eyes; her mood turns happy for a moment and the dust gets one playful kick. |
-| 👍 Thumbs up | "HI BRO" is spelled out with pink particles streaming up from the dust, then they scatter back. |
+| 👍 Thumbs up | "HI BRO" is spelled out with glowing particles streaming up from the dust, then they scatter back. |
+| 🤟 Three fingers up (index, middle, ring), moved up or down | Scrolls the conversation the way your hand moves (down scrolls down), with a little glide when you stop. A "3-finger scroll" cue appears on the panel and the dust drifts with you. |
 | ☝️ Point with your index finger and move it | The sphere follows your fingertip: a glowing tip with a comet trail appears inside the ball, the plasma dust is dragged hard the way you move and leans toward it, nearby constellation points are pulled in on threads of light, quick moves throw the dust and spark the rim, and a fast wave sends ripples across. Lower or open your finger and it lets go. |
 
-Following only happens while you point (index up, the other three fingers folded; the thumb can do anything), so ordinary hand movement doesn't stir anything. Hold a pose still for about a fifth of a second. Each gesture fires once per showing: lower your hand (or change pose), then show it again; the same gesture can't repeat within 2.5 seconds. Gestures are ignored while one is already playing, and for a moment after you type, so hands on the keyboard don't set anything off. Each shape lasts about 2.5 seconds, then the ball goes back to the topic shape (or to thinking). With *reduce motion* turned on in your system settings, the effects are shorter and calmer.
+Following only happens while you point (index up, the other three fingers folded; the thumb can do anything), so ordinary hand movement doesn't stir anything. Hold a pose still for about a tenth of a second. Each gesture fires once per showing: lower your hand (or change pose), then show it again; the same gesture can't repeat within 2.5 seconds. Gestures are ignored while one is already playing, and for a moment after you type, so hands on the keyboard don't set anything off. Each shape lasts about 2.5 seconds, then the ball goes back to the topic shape (or to thinking). With *reduce motion* turned on in your system settings, the effects are shorter and calmer.
 
 **Privacy.** Hand tracking runs entirely in your browser with [MediaPipe Hand Landmarker](https://ai.google.dev/edge/mediapipe/solutions/vision/hand_landmarker). Camera frames go from the video element straight into the on-device model; they are never uploaded, never sent to Nelle's server and never saved. The only network requests are downloading the MediaPipe library (jsDelivr) and the hand model file (Google's model storage) when you first turn the camera on. Turning the camera off stops it immediately.
 
-Needs Chrome, Edge or another browser with camera access, over `localhost` or HTTPS. Tracking runs on every other frame (about 30 a second) on the GPU where possible, and drops to every third frame on a slow machine so the animation stays smooth.
+Needs Chrome, Edge or another browser with camera access, over `localhost` or HTTPS.
 
-**Debugging.** Open `http://127.0.0.1:8000/?debug=gestures` for a panel with each finger's state (extended, folded or unsure), the detected pose, its confidence, detections per second and the time each one takes. **Copy landmarks** copies the current hand as a JSON test fixture.
+**Speed and reliability.** Tracking runs on the GPU where possible, on every new camera frame the moment it arrives (and the camera is asked for up to 60 frames a second), so the sphere reacts with very little lag; on a slow machine it leaves a frame between detections so the animation stays smooth. Finger states are read from MediaPipe's 3D hand model, so a hand tilted toward the camera still reads correctly, and each finger is "sticky": it only changes between open and folded when it clearly does, so poses don't flicker. A gesture needs about four camera frames, and a single unclear frame in the middle doesn't spoil it.
+
+**Debugging.** Open `http://127.0.0.1:8000/?debug=gestures` for a panel with each finger's state (extended, folded or unsure), the detected pose, whether it is following or scrolling, whether 3D landmarks are in use, detections per second and the time each one takes. **Copy landmarks** copies the current hand as a JSON test fixture.
 
 **Adding a gesture.** Write a pose rule in `web/poses.js`, add `{ name, detect }` to `GESTURES` in `web/gestures.js`, and map the name to an animation in `GESTURE_ACTIONS` in `web/app.js`. Shapes for the constellation go in `GESTURE_SHAPES` in `web/constellation.js`; new words just need their letters in the stroke font, `web/strokefont.js`.
 
@@ -108,7 +115,7 @@ The hand-pose rules have their own tests, run with Node's built-in test runner (
 node --test "tests/js/*.test.mjs"
 ```
 
-They check each pose, and pointing, against 102 landmark fixtures: both hands, tilted, near and far, with positives for every gesture and near misses that must not fire (three fingers, a half-bent finger, fingers held together, thumbs down, a sideways thumb, and more). They also cover the debouncing (six frames, confidence, cooldown, release), the movement filter's dead zone and wave detection, and the stroke font. The fixtures are generated with realistic hand proportions by `tests/js/make-fixtures.mjs`; hands recorded from a real camera can be added to `tests/js/fixtures/recorded.json` with the debug panel's **Copy landmarks** button.
+They check each pose, pointing and three-finger scrolling against 102 landmark fixtures: both hands, tilted, near and far, with positives for every gesture and near misses that must not fire (three fingers, a half-bent finger, fingers held together, thumbs down, a sideways thumb, and more). They also cover the debouncing (four frames, one unclear frame tolerated, confidence, cooldown, release), the sticky finger states, reading from 3D landmarks, the movement filter's dead zone and wave detection, and the stroke font. The fixtures are generated with realistic hand proportions by `tests/js/make-fixtures.mjs`; hands recorded from a real camera can be added to `tests/js/fixtures/recorded.json` with the debug panel's **Copy landmarks** button.
 
 GitHub Actions runs both suites on every push and pull request, with no API key needed.
 
@@ -125,7 +132,7 @@ nelle2/
   commands.py  the original command matcher (open, search, time)
   nelle.py     the original terminal voice assistant (still works)
   web/         index.html, styles.css, app.js, stage.js, crystal.js, constellation.js, voice.js,
-               gestures.js, poses.js, strokefont.js, gesture-debug.js
+               gestures.js, poses.js, handscroll.js, strokefont.js, gesture-debug.js
 tests/         pytest tests; tests/js has the Node tests for the hand-pose rules
 docs/          screenshots
 ```
