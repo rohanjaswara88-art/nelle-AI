@@ -16,22 +16,27 @@ import {
   indexTip,
   isFive,
   isPoint,
+  isThree,
   isThumbsUp,
   isTwo,
+  palmCenter,
 } from "./poses.js";
 
 const VISION = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.2.0";
 const MODEL = "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task";
 const VIDEO = { width: 640, height: 480 };
 const PREVIEW_WIDTH = 160;
-const MIN_CONFIDENCE = 0.7;
-// Detect on every other frame (~30 fps). If a detection costs more than this many ms on this
-// machine, back off to every third frame so the sphere's 60 fps animation never stutters.
+const MIN_CONFIDENCE = 0.7; // hand detection and presence; MediaPipe drops hands below it
+// Detect on every new camera frame, as soon as it arrives. If a detection costs more than this many
+// ms on this machine, leave at least one animation frame between detections so the sphere's
+// 60 fps animation never stutters.
 const SLOW_DETECT_MS = 12;
-// Following starts after the index points for this many detections in a row, and stops after
-// this many without, so a flicker of the pose neither starts nor breaks it.
-const POINT_START_FRAMES = 3;
-const POINT_STOP_FRAMES = 6;
+// Following (point) and scrolling (three fingers) start after the pose is seen this many
+// detections in a row, and stop after this many without, so a flicker neither starts nor breaks them.
+const MODE_START_FRAMES = 2;
+const MODE_STOP_FRAMES = 6;
+const SCROLL_SMOOTHING = 0.6;
+const SCROLL_DEAD_ZONE = 0.004;
 
 /** The gesture registry. Order matters only when two rules could match; the rules are mutually exclusive. */
 export const GESTURES = [
@@ -40,9 +45,11 @@ export const GESTURES = [
   { name: "two", detect: isTwo },
 ];
 
-/** The registered gesture this hand is making, or null. `hand` is 21 mirrored landmarks. */
-export function classifyPose(hand, aspect = VIDEO.width / VIDEO.height) {
-  const states = fingerStates(hand, aspect);
+/**
+ * The registered gesture this hand is making, or null. `hand` is 21 mirrored image landmarks;
+ * `states` can be passed in when they were worked out elsewhere (from world landmarks).
+ */
+export function classifyPose(hand, aspect = VIDEO.width / VIDEO.height, states = fingerStates(hand, aspect)) {
   return GESTURES.find((gesture) => gesture.detect(hand, states, aspect))?.name ?? null;
 }
 
@@ -91,11 +98,13 @@ export class CameraError extends Error {
 
 /**
  * Watches one hand through the camera. Call tick(now) once per animation frame (from stage.onFrame);
- * it runs detection on every other frame. Events:
+ * it runs detection whenever the camera has delivered a new frame. Events:
  *   gesture  { name }                       a registered pose was held (debounced, see PoseGate)
  *   move     { x, y, vx, vy, wave } | null  index fingertip in 0..1 screen space (mirrored), per
  *                                           second, only while pointing; null when not following
- *   pose     { pose, states, score } | null every detection, for the debug overlay
+ *   scroll   { vy } | null                  palm speed up/down (frame heights per second, down is
+ *                                           positive) while three fingers are up; null when it ends
+ *   pose     { pose, states, ... } | null   every detection, for the debug overlay
  */
 export class GestureTracker {
   constructor(previewRoot) {
@@ -105,12 +114,13 @@ export class GestureTracker {
     this.listeners = {};
     this.gate = new PoseGate();
     this.filter = new MotionFilter({ smoothing: FINGER_SMOOTHING, deadZone: FINGER_DEAD_ZONE });
-    this.following = false;
-    this.pointStreak = 0;
-    this.pointMiss = 0;
+    this.scrollFilter = new MotionFilter({ smoothing: SCROLL_SMOOTHING, deadZone: SCROLL_DEAD_ZONE });
+    this.follow = { active: false, seen: 0, missed: 0 };
+    this.scroll = { active: false, seen: 0, missed: 0 };
+    this.states = null;
     this.running = false;
     this.frame = 0;
-    this.every = 2;
+    this.nextFrame = 0;
     this.detectMs = 8;
     this.showVideo = true;
     this.lastVideoTime = -1;
@@ -140,27 +150,56 @@ export class GestureTracker {
     this.quietUntil = Math.max(this.quietUntil, performance.now() + ms);
   }
 
+  get following() {
+    return this.follow.active;
+  }
+
+  get scrolling() {
+    return this.scroll.active;
+  }
+
   resetTracking() {
     this.gate.reset();
     this.filter.reset();
-    this.following = false;
-    this.pointStreak = 0;
-    this.pointMiss = 0;
+    this.scrollFilter.reset();
+    this.follow = { active: false, seen: 0, missed: 0 };
+    this.scroll = { active: false, seen: 0, missed: 0 };
+    this.states = null;
     this.emit("move", null);
+    this.emit("scroll", null);
+  }
+
+  /** Track a held mode (pointing, three fingers): on after a short streak, off after a few misses. */
+  static updateMode(mode, holding) {
+    mode.seen = holding ? mode.seen + 1 : 0;
+    mode.missed = holding ? 0 : mode.missed + 1;
+    const was = mode.active;
+    if (!was && mode.seen >= MODE_START_FRAMES) mode.active = true;
+    if (was && mode.missed >= MODE_STOP_FRAMES) mode.active = false;
+    return was !== mode.active;
   }
 
   /** Point with the index finger to be followed; stop pointing (or leave) to let go. */
   updateFollow(hand, states, now) {
-    const pointing = Boolean(hand) && isPoint(hand, states);
-    this.pointStreak = pointing ? this.pointStreak + 1 : 0;
-    this.pointMiss = pointing ? 0 : this.pointMiss + 1;
-    if (!this.following && this.pointStreak >= POINT_START_FRAMES) this.following = true;
-    if (this.following && this.pointMiss >= POINT_STOP_FRAMES) {
-      this.following = false;
+    const changed = GestureTracker.updateMode(this.follow, Boolean(hand) && isPoint(hand, states));
+    if (changed && !this.follow.active) {
       this.filter.reset();
       this.emit("move", null);
     }
-    if (this.following && hand) this.emit("move", this.filter.update(indexTip(hand), now));
+    if (this.follow.active && hand) this.emit("move", this.filter.update(indexTip(hand), now));
+  }
+
+  /** Three fingers up: moving the hand up and down scrolls. */
+  updateScroll(hand, states, now) {
+    const changed = GestureTracker.updateMode(this.scroll, Boolean(hand) && isThree(hand, states));
+    if (changed && !this.scroll.active) {
+      this.scrollFilter.reset();
+      this.emit("scroll", null);
+    }
+    if (this.scroll.active && hand) {
+      const motion = this.scrollFilter.update(palmCenter(hand), now);
+      this.emit("scroll", { vy: motion.vy });
+    }
   }
 
   async start() {
@@ -169,7 +208,13 @@ export class GestureTracker {
     let stream;
     try {
       stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "user", width: { ideal: VIDEO.width }, height: { ideal: VIDEO.height } },
+        // up to 60 fps where the camera can: every extra frame is less lag between hand and sphere
+        video: {
+          facingMode: "user",
+          width: { ideal: VIDEO.width },
+          height: { ideal: VIDEO.height },
+          frameRate: { ideal: 60 },
+        },
         audio: false,
       });
     } catch (error) {
@@ -217,11 +262,11 @@ export class GestureTracker {
     this.emit("pose", null);
   }
 
-  /** Called every animation frame; detects on every other one (~30 fps). */
+  /** Called every animation frame; detects whenever the camera has a new frame. */
   tick(now) {
     if (!this.running || document.hidden) return;
     this.frame += 1;
-    if (this.frame % this.every) return;
+    if (this.frame < this.nextFrame) return; // a slow machine: give the animation a frame to breathe
     const video = this.video;
     if (video.readyState < 2 || video.currentTime === this.lastVideoTime) return;
     this.lastVideoTime = video.currentTime;
@@ -231,24 +276,37 @@ export class GestureTracker {
       const started = performance.now();
       result = this.landmarker.detectForVideo(video, now);
       this.detectMs += (performance.now() - started - this.detectMs) * 0.1;
-      this.every = this.detectMs > SLOW_DETECT_MS ? 3 : 2;
+      this.nextFrame = this.frame + (this.detectMs > SLOW_DETECT_MS ? 2 : 1);
     } catch (error) {
       console.warn("Hand tracking frame failed:", error);
       return;
     }
     const raw = result.landmarks?.[0];
-    const score = result.handedness?.[0]?.[0]?.score ?? 0;
+    const mirror = (points) => points.map((p) => ({ x: -p.x, y: p.y, z: p.z }));
     const hand = raw ? raw.map((p) => ({ x: 1 - p.x, y: p.y, z: p.z })) : null; // mirror: your right is screen right
+    const world = result.worldLandmarks?.[0] ? mirror(result.worldLandmarks[0]) : null;
+    const side = result.handedness?.[0]?.[0]?.score ?? 0; // left/right certainty, shown in the debug panel
     this.lastHand = hand;
 
     const aspect = video.videoWidth / video.videoHeight || VIDEO.width / VIDEO.height;
-    const states = hand ? fingerStates(hand, aspect) : null;
-    const pose = hand ? classifyPose(hand, aspect) : null;
+    // finger states come from the 3D world landmarks when available (tilt-proof), with hysteresis
+    this.states = hand ? (world ? fingerStates(world, 1, this.states) : fingerStates(hand, aspect, this.states)) : null;
+    const states = this.states;
+    const pose = hand ? classifyPose(hand, aspect, states) : null;
     const quiet = now < this.quietUntil;
-    const fired = this.gate.update(quiet ? null : pose, score, now);
+    // MediaPipe only returns a hand whose presence confidence is >= MIN_CONFIDENCE, so a returned
+    // hand counts as confident. (The left/right score is not a presence score and used to block
+    // sideways hands, like a thumbs up, so it is no longer used here.)
+    const fired = this.gate.update(quiet ? null : pose, hand ? 1 : 0, now);
     if (fired) this.emit("gesture", { name: fired });
     this.updateFollow(hand, states, now);
-    this.emit("pose", hand ? { pose, states, score, quiet, following: this.following, detectMs: this.detectMs } : null);
+    this.updateScroll(hand, states, now);
+    this.emit(
+      "pose",
+      hand
+        ? { pose, states, score: side, quiet, following: this.following, scrolling: this.scrolling, world: Boolean(world), detectMs: this.detectMs }
+        : null,
+    );
     this.drawPreview(hand, aspect);
   }
 
@@ -272,14 +330,14 @@ export class GestureTracker {
     }
     if (!hand) return;
     ctx.lineWidth = 1.5;
-    ctx.strokeStyle = "rgba(255, 120, 220, 0.9)";
+    ctx.strokeStyle = "rgba(182, 255, 59, 0.9)";
     ctx.beginPath();
     for (const [a, b] of CONNECTIONS) {
       ctx.moveTo(hand[a].x * width, hand[a].y * height);
       ctx.lineTo(hand[b].x * width, hand[b].y * height);
     }
     ctx.stroke();
-    ctx.fillStyle = "#ffd6f3";
+    ctx.fillStyle = "#efffd6";
     for (const p of hand) {
       ctx.beginPath();
       ctx.arc(p.x * width, p.y * height, 2, 0, Math.PI * 2);

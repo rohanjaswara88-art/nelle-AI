@@ -37,24 +37,35 @@ export function distance(a, b, aspect = DEFAULT_ASPECT) {
   return Math.hypot(dx, dy, dz);
 }
 
-function classify(ratio, extended, folded) {
+// Hysteresis: a finger that was extended last frame stays extended until it clearly folds (and the
+// other way round), so a finger near a threshold doesn't flicker and break a gesture's streak.
+export const HYSTERESIS = 0.6; // fraction of the unsure band a finger may slip back without changing
+
+function classify(ratio, extended, folded, previous) {
+  const give = (extended - folded) * HYSTERESIS;
+  if (previous === "extended" && ratio > extended - give) return "extended";
+  if (previous === "folded" && ratio < folded + give) return "folded";
   if (ratio >= extended) return "extended";
   if (ratio <= folded) return "folded";
   return "unsure";
 }
 
-/** Each finger's state: "extended", "folded" or "unsure". */
-export function fingerStates(hand, aspect = DEFAULT_ASPECT) {
+/**
+ * Each finger's state: "extended", "folded" or "unsure". Pass last frame's states as `previous`
+ * for hysteresis. Works on image landmarks (with the frame aspect) or on MediaPipe's 3D world
+ * landmarks (aspect 1), which hold up much better when the hand is tilted toward the camera.
+ */
+export function fingerStates(hand, aspect = DEFAULT_ASPECT, previous = null) {
   const wrist = hand[WRIST];
   const states = {};
   for (const [name, f] of Object.entries(FINGERS)) {
     const ratio = distance(hand[f.tip], wrist, aspect) / Math.max(1e-6, distance(hand[f.pip], wrist, aspect));
-    states[name] = classify(ratio, EXTENDED_RATIO, FOLDED_RATIO);
+    states[name] = classify(ratio, EXTENDED_RATIO, FOLDED_RATIO, previous?.[name]);
   }
   const knuckle = hand[FINGERS.index.mcp];
   const thumbRatio =
     distance(hand[THUMB.tip], knuckle, aspect) / Math.max(1e-6, distance(hand[THUMB.ip], knuckle, aspect));
-  states.thumb = classify(thumbRatio, THUMB_EXTENDED_RATIO, THUMB_FOLDED_RATIO);
+  states.thumb = classify(thumbRatio, THUMB_EXTENDED_RATIO, THUMB_FOLDED_RATIO, previous?.thumb);
   return states;
 }
 
@@ -107,6 +118,19 @@ export function isPoint(hand, states = fingerStates(hand)) {
   );
 }
 
+/**
+ * Three: index, middle and ring extended, pinky folded, thumb anything. Not a one-shot gesture:
+ * while it holds, moving the hand up and down scrolls the conversation.
+ */
+export function isThree(hand, states = fingerStates(hand)) {
+  return (
+    states.index === "extended" &&
+    states.middle === "extended" &&
+    states.ring === "extended" &&
+    states.pinky === "folded"
+  );
+}
+
 /** The index fingertip, the point that leads while pointing. */
 export function indexTip(hand) {
   const tip = hand[FINGERS.index.tip];
@@ -127,7 +151,8 @@ export function isThumbsUp(hand, states = fingerStates(hand), aspect = DEFAULT_A
 
 // ---------- turning noisy per-frame poses into single gesture events ----------
 
-export const HOLD_FRAMES = 6; // the same pose this many detection frames in a row (~200 ms at 30 fps)
+export const HOLD_FRAMES = 4; // the same pose this many detection frames (~130 ms at 30 fps)
+export const GAP_FRAMES = 1; // an unclear frame or two in the middle doesn't restart the count
 export const RELEASE_FRAMES = 5; // gone this many frames counts as let go
 export const MIN_CONFIDENCE = 0.7;
 export const COOLDOWN_MS = 2500;
@@ -138,8 +163,15 @@ export const COOLDOWN_MS = 2500;
  * (and after the cooldown) to fire it again.
  */
 export class PoseGate {
-  constructor({ hold = HOLD_FRAMES, release = RELEASE_FRAMES, confidence = MIN_CONFIDENCE, cooldown = COOLDOWN_MS } = {}) {
+  constructor({
+    hold = HOLD_FRAMES,
+    gap = GAP_FRAMES,
+    release = RELEASE_FRAMES,
+    confidence = MIN_CONFIDENCE,
+    cooldown = COOLDOWN_MS,
+  } = {}) {
     this.hold = hold;
+    this.gap = gap;
     this.release = release;
     this.confidence = confidence;
     this.cooldown = cooldown;
@@ -149,6 +181,7 @@ export class PoseGate {
   reset() {
     this.candidate = null;
     this.streak = 0;
+    this.gapFrames = 0;
     this.lastFired = new Map(); // name -> time
     this.armed = new Map(); // name -> false while still being held after firing
     this.absent = new Map(); // name -> frames since last seen
@@ -168,11 +201,15 @@ export class PoseGate {
       if (gone >= this.release) this.armed.set(name, true);
     }
 
-    if (seen !== this.candidate) {
+    if (seen && seen === this.candidate) {
+      this.streak += 1;
+      this.gapFrames = 0;
+    } else if (!seen && this.candidate && this.gapFrames < this.gap) {
+      this.gapFrames += 1; // a blink of an unclear frame: hold the count, don't add to it
+    } else {
       this.candidate = seen;
       this.streak = seen ? 1 : 0;
-    } else if (seen) {
-      this.streak += 1;
+      this.gapFrames = 0;
     }
     if (!seen || this.streak < this.hold) return null;
     if (this.armed.get(seen) === false) return null;

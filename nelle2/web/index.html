@@ -3,6 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#020302" />
     <title>Nelle</title>
     <meta name="description" content="Nelle, an emotionally aware AI that lives in a crystal ball of plasma." />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -55,6 +56,10 @@
         <span id="memory" class="mono">MEM 00/12</span>
       </div>
       <ol id="log" aria-live="polite"></ol>
+      <div id="scroll-cue" class="scroll-cue" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M12 4v16M6 10l6-6 6 6M6 14l6 6 6-6" /></svg>
+        <span class="mono">3-finger scroll</span>
+      </div>
       <div id="starters" class="starters" aria-label="Things to ask">
         <button type="button">Explain recursion simply</button>
         <button type="button">How far away is Mars?</button>

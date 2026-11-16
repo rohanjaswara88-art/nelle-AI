@@ -1,14 +1,17 @@
 :root {
-  --ink: #ffeaf8;
-  --ink-dim: rgba(255, 222, 245, 0.62);
-  --ink-faint: rgba(255, 205, 240, 0.34);
-  --line: rgba(255, 170, 230, 0.18);
-  --line-strong: rgba(255, 185, 235, 0.4);
-  --glass: linear-gradient(155deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.02) 55%, rgba(242, 91, 208, 0.06));
-  --glass-solid: rgba(26, 6, 34, 0.45);
-  --accent: #ff9ce6;
-  --glow: rgba(242, 91, 208, 0.55);
-  --deep: #05010a;
+  /* lime on black */
+  --lime: 182, 255, 59; /* #B6FF3B, as rgb so it can take any alpha */
+  --acid: 166, 255, 0; /* #A6FF00, the ball's neutral colour */
+  --ink: #f2ffe2;
+  --ink-dim: rgba(228, 255, 200, 0.64);
+  --ink-faint: rgba(210, 255, 160, 0.36);
+  --line: rgba(var(--lime), 0.16);
+  --line-strong: rgba(var(--lime), 0.42);
+  --glass: linear-gradient(155deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.015) 55%, rgba(var(--acid), 0.05));
+  --glass-solid: rgba(6, 10, 5, 0.55);
+  --accent: #c6ff3d;
+  --glow: rgba(var(--acid), 0.5);
+  --deep: #020302;
   --sans: "Space Grotesk", system-ui, sans-serif;
   --mono: "JetBrains Mono", ui-monospace, monospace;
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
@@ -93,8 +96,8 @@ body {
   inset: 0;
   pointer-events: none;
   background:
-    radial-gradient(ellipse 75% 70% at 38% 48%, transparent 45%, rgba(4, 0, 10, 0.6) 100%),
-    linear-gradient(180deg, rgba(4, 0, 10, 0.35), transparent 22%);
+    radial-gradient(ellipse 75% 70% at 38% 48%, transparent 45%, rgba(0, 0, 0, 0.6) 100%),
+    linear-gradient(180deg, rgba(0, 0, 0, 0.35), transparent 22%);
 }
 
 @keyframes fade-in {
@@ -208,14 +211,14 @@ svg {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: #f25bd0;
-  box-shadow: 0 0 10px #f25bd0;
+  background: #a6ff00;
+  box-shadow: 0 0 10px #a6ff00;
   animation: breathe 3.6s ease-in-out infinite;
 }
 
-body[data-state="listening"] .dot { background: #ff9ce6; animation-duration: 0.9s; }
-body[data-state="thinking"] .dot { background: #b58bff; box-shadow: 0 0 10px #b58bff; animation-duration: 1.4s; }
-body[data-state="speaking"] .dot { background: #ffd6f3; animation-duration: 0.6s; }
+body[data-state="listening"] .dot { background: #d9ff6a; box-shadow: 0 0 10px #d9ff6a; animation-duration: 0.9s; }
+body[data-state="thinking"] .dot { background: #4dffc4; box-shadow: 0 0 10px #4dffc4; animation-duration: 1.4s; }
+body[data-state="speaking"] .dot { background: #f0ffc8; animation-duration: 0.6s; }
 
 @keyframes breathe {
   50% { opacity: 0.35; transform: scale(0.8); }
@@ -269,6 +272,54 @@ body[data-state="speaking"] .dot { background: #ffd6f3; animation-duration: 0.6s
   animation: breathe 1.2s ease-in-out infinite;
 }
 
+/* ---------- three-finger scroll cue ---------- */
+
+.scroll-cue {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px 6px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  background: rgba(3, 6, 3, 0.72);
+  color: var(--accent);
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(8px, -50%);
+  transition: opacity 0.25s var(--ease), transform 0.25s var(--ease);
+}
+
+.scroll-cue svg {
+  width: 14px;
+  height: 14px;
+  transition: transform 0.2s var(--ease);
+}
+
+body.hand-scrolling .scroll-cue {
+  opacity: 1;
+  transform: translate(0, -50%);
+  box-shadow: 0 0 18px rgba(var(--acid), 0.25);
+}
+
+.scroll-cue[data-dir="up"] svg { transform: translateY(-2px); }
+.scroll-cue[data-dir="down"] svg { transform: translateY(2px); }
+
+/* the conversation's edge lights up while the hand is scrolling it */
+body.hand-scrolling .panel {
+  border-color: rgba(var(--lime), 0.36);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 0 0 1px rgba(var(--lime), 0.08),
+    0 24px 60px -20px rgba(0, 0, 0, 0.7),
+    0 0 40px -10px rgba(var(--acid), 0.25);
+}
+
 /* ---------- camera preview and gesture debug ---------- */
 
 .cam {
@@ -291,7 +342,7 @@ body[data-state="speaking"] .dot { background: #ffd6f3; animation-duration: 0.6s
   display: block;
   width: 160px;
   height: 120px;
-  background: rgba(10, 2, 16, 0.6);
+  background: rgba(3, 6, 3, 0.6);
 }
 
 .cam-label {
@@ -378,7 +429,7 @@ body[data-state="speaking"] .dot { background: #ffd6f3; animation-duration: 0.6s
   align-items: baseline;
   justify-content: space-between;
   padding: 20px 22px 14px;
-  border-bottom: 1px solid rgba(255, 170, 230, 0.1);
+  border-bottom: 1px solid rgba(var(--lime), 0.1);
 }
 
 .panel-head h1 {
@@ -405,7 +456,7 @@ body[data-state="speaking"] .dot { background: #ffd6f3; animation-duration: 0.6s
   flex-direction: column;
   gap: 18px;
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 170, 230, 0.2) transparent;
+  scrollbar-color: rgba(var(--lime), 0.2) transparent;
   mask-image: linear-gradient(transparent, #000 22px, #000 calc(100% - 10px), transparent);
 }
 
@@ -443,7 +494,7 @@ body[data-state="speaking"] .dot { background: #ffd6f3; animation-duration: 0.6s
 
 .msg .tag + .tag {
   color: var(--accent);
-  border-color: rgba(255, 156, 230, 0.3);
+  border-color: rgba(var(--lime), 0.3);
 }
 
 .msg .body {
@@ -463,14 +514,14 @@ body[data-state="speaking"] .dot { background: #ffd6f3; animation-duration: 0.6s
   max-width: 88%;
   padding: 9px 14px;
   border-radius: 16px 16px 4px 16px;
-  background: rgba(255, 150, 225, 0.1);
-  border: 1px solid rgba(255, 170, 230, 0.14);
+  background: rgba(var(--lime), 0.1);
+  border: 1px solid rgba(var(--lime), 0.14);
   font-weight: 400;
 }
 
 .msg.nelle .body {
-  color: #fff0fa;
-  text-shadow: 0 0 18px rgba(242, 91, 208, 0.28);
+  color: #f6ffea;
+  text-shadow: 0 0 18px rgba(var(--acid), 0.28);
 }
 
 .w {
@@ -503,7 +554,7 @@ body[data-state="speaking"] .dot { background: #ffd6f3; animation-duration: 0.6s
 }
 
 .chip:hover {
-  background: rgba(255, 150, 225, 0.12);
+  background: rgba(var(--lime), 0.12);
 }
 
 .starters {
@@ -518,7 +569,7 @@ body[data-state="speaking"] .dot { background: #ffd6f3; animation-duration: 0.6s
   padding: 7px 12px;
   border-radius: 999px;
   border: 1px solid var(--line);
-  background: rgba(255, 150, 225, 0.05);
+  background: rgba(var(--lime), 0.05);
   font-size: 12.5px;
   color: var(--ink-dim);
   transition: color 0.3s, border-color 0.3s, background 0.3s;
@@ -527,7 +578,7 @@ body[data-state="speaking"] .dot { background: #ffd6f3; animation-duration: 0.6s
 .starters button:hover {
   color: var(--ink);
   border-color: var(--line-strong);
-  background: rgba(255, 150, 225, 0.12);
+  background: rgba(var(--lime), 0.12);
 }
 
 body.started .starters {
@@ -541,8 +592,8 @@ body.started .starters {
   margin: 0 14px;
   padding: 8px 8px 8px 16px;
   border-radius: 20px;
-  background: rgba(10, 2, 16, 0.42);
-  border: 1px solid rgba(255, 170, 230, 0.16);
+  background: rgba(3, 6, 3, 0.42);
+  border: 1px solid rgba(var(--lime), 0.16);
   transition: border-color 0.3s;
 }
 
@@ -583,12 +634,12 @@ body.started .starters {
 
 .icon:hover {
   color: var(--ink);
-  background: rgba(255, 150, 225, 0.1);
+  background: rgba(var(--lime), 0.1);
 }
 
 .send {
-  background: rgba(242, 91, 208, 0.22);
-  border-color: rgba(255, 170, 230, 0.3);
+  background: rgba(var(--acid), 0.22);
+  border-color: rgba(var(--lime), 0.3);
   color: var(--ink);
 }
 
@@ -605,7 +656,7 @@ body.started .starters {
 
 #mic.is-live {
   color: #fff;
-  background: rgba(242, 91, 208, 0.3);
+  background: rgba(var(--acid), 0.3);
 }
 
 #mic.is-live::after {
@@ -613,7 +664,7 @@ body.started .starters {
   position: absolute;
   inset: -4px;
   border-radius: 50%;
-  border: 1px solid rgba(255, 170, 230, 0.6);
+  border: 1px solid rgba(var(--lime), 0.6);
   animation: ring 1.4s var(--ease) infinite;
 }
 

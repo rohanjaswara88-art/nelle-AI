@@ -5,7 +5,7 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { MotionFilter, PoseGate, fingerStates, indexTip, isFive, isPoint, isThumbsUp, isTwo, palmCenter } from "../../nelle2/web/poses.js";
+import { MotionFilter, PoseGate, fingerStates, indexTip, isFive, isPoint, isThree, isThumbsUp, isTwo, palmCenter } from "../../nelle2/web/poses.js";
 import { classifyPose } from "../../nelle2/web/gestures.js";
 import { layoutText, GLYPHS } from "../../nelle2/web/strokefont.js";
 
@@ -67,16 +67,33 @@ const frames = (gate, pose, count, { score = 0.9, start = 0, step = 33 } = {}) =
   return fired;
 };
 
-test("a pose fires once, on its sixth frame in a row", () => {
+test("a pose fires once, on its fourth frame in a row", () => {
   const gate = new PoseGate();
-  assert.deepEqual(frames(gate, "two", 30), [["two", 5]]);
+  assert.deepEqual(frames(gate, "two", 30), [["two", 3]]);
 });
 
-test("five frames is not enough, and a gap restarts the count", () => {
+test("three frames is not enough", () => {
   const gate = new PoseGate();
-  assert.deepEqual(frames(gate, "two", 5), []);
-  gate.update(null, 0.9, 200);
-  assert.deepEqual(frames(gate, "two", 5, { start: 233 }), []);
+  assert.deepEqual(frames(gate, "two", 3), []);
+});
+
+test("one unclear frame in the middle doesn't restart the count, two do", () => {
+  const blink = new PoseGate();
+  frames(blink, "two", 2);
+  blink.update(null, 0.9, 70);
+  assert.deepEqual(frames(blink, "two", 2, { start: 100 }), [["two", 1]]);
+
+  const gap = new PoseGate();
+  frames(gap, "two", 2);
+  gap.update(null, 0.9, 70);
+  gap.update(null, 0.9, 100);
+  assert.deepEqual(frames(gap, "two", 3, { start: 133 }), []);
+});
+
+test("a different pose restarts the count at once", () => {
+  const gate = new PoseGate();
+  frames(gate, "two", 3);
+  assert.deepEqual(frames(gate, "five", 3, { start: 100 }), []);
 });
 
 test("low confidence never fires", () => {
@@ -91,24 +108,67 @@ test("holding a pose does not refire, even after the cooldown", () => {
 
 test("after letting go, it refires only once the cooldown has passed", () => {
   const gate = new PoseGate();
-  frames(gate, "five", 6, { start: 0 }); // fires at ~165 ms
+  frames(gate, "five", 4, { start: 0 }); // fires at ~100 ms
   frames(gate, null, 5, { start: 200 }); // released
   assert.deepEqual(frames(gate, "five", 10, { start: 400 }), [], "inside the 2.5 s cooldown");
   frames(gate, null, 5, { start: 800 });
-  assert.deepEqual(frames(gate, "five", 6, { start: 3000 }), [["five", 5]]);
+  assert.deepEqual(frames(gate, "five", 4, { start: 3000 }), [["five", 3]]);
 });
 
 test("four frames away is not a release", () => {
   const gate = new PoseGate();
-  frames(gate, "two", 6, { start: 0 });
+  frames(gate, "two", 4, { start: 0 });
   frames(gate, null, 4, { start: 200 });
   assert.deepEqual(frames(gate, "two", 10, { start: 3000 }), []);
 });
 
 test("different gestures have separate cooldowns", () => {
   const gate = new PoseGate();
-  assert.deepEqual(frames(gate, "two", 6, { start: 0 }), [["two", 5]]);
-  assert.deepEqual(frames(gate, "five", 6, { start: 300 }), [["five", 5]]);
+  assert.deepEqual(frames(gate, "two", 4, { start: 0 }), [["two", 3]]);
+  assert.deepEqual(frames(gate, "five", 4, { start: 300 }), [["five", 3]]);
+});
+
+// ---------- finger states: hysteresis and 3D world landmarks ----------
+
+/** One finger bent so its tip sits at `ratio` times its PIP distance from the wrist. */
+function handWithIndexRatio(ratio) {
+  const hand = hands.find((h) => h.name === "fist/right").landmarks.map((p) => ({ ...p }));
+  const wrist = hand[0];
+  const pip = hand[6];
+  const reach = Math.hypot(((pip.x - wrist.x) * 4) / 3, pip.y - wrist.y, ((pip.z - wrist.z) * 4) / 3) * ratio;
+  hand[8] = { x: wrist.x, y: wrist.y - reach, z: wrist.z };
+  return hand;
+}
+
+test("a finger near the threshold keeps its state instead of flickering", () => {
+  const borderline = handWithIndexRatio(1.07); // inside the unsure band
+  assert.equal(fingerStates(borderline).index, "unsure");
+  assert.equal(fingerStates(borderline, 4 / 3, { index: "extended" }).index, "extended");
+  assert.equal(fingerStates(borderline, 4 / 3, { index: "folded" }).index, "folded");
+  // but a clear change still wins over the previous state
+  assert.equal(fingerStates(handWithIndexRatio(0.8), 4 / 3, { index: "extended" }).index, "folded");
+  assert.equal(fingerStates(handWithIndexRatio(1.3), 4 / 3, { index: "folded" }).index, "extended");
+});
+
+test("finger states read the same from world-style landmarks (no aspect stretch)", () => {
+  for (const hand of hands.filter((h) => h.name.endsWith("/right"))) {
+    // world landmarks: metres, centred on the hand, no 4:3 squash
+    const world = hand.landmarks.map((p) => ({ x: ((p.x - 0.5) * 4) / 3 * 0.4, y: (p.y - 0.5) * 0.4, z: ((p.z * 4) / 3) * 0.4 }));
+    assert.deepEqual(fingerStates(world, 1), fingerStates(hand.landmarks), hand.name);
+  }
+});
+
+// ---------- three fingers: scrolling ----------
+
+test("three fingers is recognised for scrolling, and is never a one-shot gesture", () => {
+  const three = hands.filter((h) => h.name.startsWith("three/"));
+  assert.equal(three.length, 6);
+  for (const hand of three) {
+    assert.equal(isThree(hand.landmarks), true, hand.name);
+    assert.equal(classifyPose(hand.landmarks), null, hand.name);
+  }
+  const others = hands.filter((h) => !h.name.startsWith("three/") && !h.name.startsWith("recorded/"));
+  for (const hand of others) assert.equal(isThree(hand.landmarks), false, hand.name);
 });
 
 // ---------- movement ----------

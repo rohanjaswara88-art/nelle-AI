@@ -1,6 +1,7 @@
 // Emotion controller: turns each reply into the ball's mood, motion and topic shape, the voice and the chat.
 import { attachGestureDebug } from "./gesture-debug.js";
 import { CameraError, GestureTracker } from "./gestures.js";
+import { HandScroller } from "./handscroll.js";
 import { Stage } from "./stage.js";
 import { SpeechInput, VoicePlayer } from "./voice.js";
 
@@ -39,6 +40,7 @@ const stage = new Stage($("#fog"), $("#ball"), $("#mind"));
 const player = new VoicePlayer();
 const speech = new SpeechInput();
 const tracker = new GestureTracker($("#cam"));
+const scroller = new HandScroller(els.log, $("#scroll-cue"));
 
 // Gesture name (from the registry in gestures.js) -> animation. Add a line here for a new gesture.
 const GESTURE_ACTIONS = {
@@ -62,6 +64,7 @@ let cameraOn = false;
 
 stage.onFrame((dt) => {
   tracker.tick(performance.now());
+  scroller.tick(dt);
   if (state === "speaking") stage.setLevel(player.level());
   if (state === "thinking") {
     const label = stage.searching ? "Searching" : "Thinking";
@@ -362,6 +365,10 @@ tracker.on("gesture", ({ name }) => {
   GESTURE_ACTIONS[name]?.();
 });
 tracker.on("move", (move) => stage.handMove(move));
+tracker.on("scroll", (scroll) => {
+  scroller.update(scroll);
+  stage.handScroll(scroll);
+});
 
 function renderCameraToggle(loading = false) {
   els.camera.setAttribute("aria-pressed", String(cameraOn));

@@ -7,21 +7,22 @@ const FOG_SCALE = 0.4; // the fog is soft, so its canvas renders at low resoluti
 
 // Ball look per emotion. Numbers are the React Bits settings; intensity blends from neutral.
 // [color, crackle, flares, sparks, glow, dustSpeed, sway, fill, haze]
+// Lime on black: warm feelings lean yellow-lime, calm or low ones lean mint and teal.
 const MOODS = {
-  neutral: ["#F25BD0", 0.6, 0.55, 0.45, 0.9, 0.9, 0.5, 0.5, 0.7],
-  happy: ["#FF6FD8", 0.75, 0.7, 0.65, 1.0, 1.15, 0.55, 0.55, 0.7],
-  excited: ["#FF7AB8", 1.0, 0.95, 0.95, 1.15, 1.6, 0.7, 0.62, 0.75],
-  sad: ["#8A6BFF", 0.3, 0.3, 0.15, 0.7, 0.55, 0.3, 0.35, 0.9],
-  frustrated: ["#FF4F7A", 1.1, 0.8, 0.9, 1.0, 1.3, 0.55, 0.5, 0.8],
-  confused: ["#C77DFF", 0.7, 0.5, 0.5, 0.9, 0.9, 0.8, 0.5, 0.75],
-  curious: ["#E36BFF", 0.7, 0.6, 0.6, 0.95, 1.0, 0.65, 0.52, 0.7],
-  surprised: ["#FF9BE6", 0.95, 1.0, 0.9, 1.2, 1.4, 0.6, 0.58, 0.7],
-  disappointed: ["#7C5CD6", 0.3, 0.25, 0.15, 0.65, 0.5, 0.3, 0.3, 0.9],
-  nervous: ["#F06BFF", 1.0, 0.5, 0.8, 0.95, 1.5, 0.9, 0.48, 0.8],
-  casual: ["#F25BD0", 0.55, 0.5, 0.45, 0.9, 0.9, 0.55, 0.5, 0.7],
-  playful: ["#FF66C4", 0.8, 0.75, 0.8, 1.05, 1.3, 0.8, 0.55, 0.7],
-  thinking: ["#A879FF", 0.5, 0.4, 0.35, 0.85, 0.7, 0.35, 0.5, 0.8],
-  concerned: ["#B565E8", 0.45, 0.4, 0.3, 0.8, 0.7, 0.4, 0.45, 0.85],
+  neutral: ["#A6FF00", 0.6, 0.55, 0.45, 0.9, 0.9, 0.5, 0.5, 0.7],
+  happy: ["#C8FF2E", 0.75, 0.7, 0.65, 1.0, 1.15, 0.55, 0.55, 0.7],
+  excited: ["#E0FF1A", 1.0, 0.95, 0.95, 1.15, 1.6, 0.7, 0.62, 0.75],
+  sad: ["#2FB88A", 0.3, 0.3, 0.15, 0.7, 0.55, 0.3, 0.35, 0.9],
+  frustrated: ["#FFD21F", 1.1, 0.8, 0.9, 1.0, 1.3, 0.55, 0.5, 0.8],
+  confused: ["#6CFFB0", 0.7, 0.5, 0.5, 0.9, 0.9, 0.8, 0.5, 0.75],
+  curious: ["#8DFF3A", 0.7, 0.6, 0.6, 0.95, 1.0, 0.65, 0.52, 0.7],
+  surprised: ["#EEFF6A", 0.95, 1.0, 0.9, 1.2, 1.4, 0.6, 0.58, 0.7],
+  disappointed: ["#2A9C76", 0.3, 0.25, 0.15, 0.65, 0.5, 0.3, 0.3, 0.9],
+  nervous: ["#B8FF4A", 1.0, 0.5, 0.8, 0.95, 1.5, 0.9, 0.48, 0.8],
+  casual: ["#A6FF00", 0.55, 0.5, 0.45, 0.9, 0.9, 0.55, 0.5, 0.7],
+  playful: ["#D2FF3A", 0.8, 0.75, 0.8, 1.05, 1.3, 0.8, 0.55, 0.7],
+  thinking: ["#4DFFC4", 0.5, 0.4, 0.35, 0.85, 0.7, 0.35, 0.5, 0.8],
+  concerned: ["#45D69E", 0.45, 0.4, 0.3, 0.8, 0.7, 0.4, 0.45, 0.85],
 };
 const KEYS = ["crackle", "flares", "sparks", "glow", "dustSpeed", "sway", "fill", "haze"];
 const NEUTRAL = MOODS.neutral;
@@ -39,7 +40,7 @@ const rand = (a, b) => a + Math.random() * (b - a);
 const ease = (current, target, rate, dt) => current + (target - current) * (1 - Math.exp(-rate * dt));
 const mix = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);
 const rgba = (c, a) => `rgba(${(c[0] * 255) | 0},${(c[1] * 255) | 0},${(c[2] * 255) | 0},${a})`;
-const COLORS = Object.fromEntries(Object.entries(MOODS).map(([name, [hex]]) => [name, parseColor(hex, [0.95, 0.36, 0.82])]));
+const COLORS = Object.fromEntries(Object.entries(MOODS).map(([name, [hex]]) => [name, parseColor(hex, [0.65, 1, 0])]));
 
 export class Stage {
   constructor(fogCanvas, ballContainer, mindCanvas) {
@@ -270,6 +271,13 @@ export class Stage {
     if (move.wave) this.wave(Math.sign(vx) || 1);
   }
 
+  /** Three-finger scrolling: the dust drifts with the scroll, so the ball feels it too. */
+  handScroll(scroll) {
+    if (!this.ball || !scroll) return;
+    const lift = Math.max(-1, Math.min(1, -scroll.vy * 1.2));
+    this.ball.lean(0, lift, this.reducedMotion ? 0.3 : 0.8);
+  }
+
   /** A wave of the hand: ripples roll across the dust and out through the fog. */
   wave(direction = 1) {
     if (!this.ball) return;
@@ -386,26 +394,27 @@ export class Stage {
     const W = fog.width;
     const H = fog.height;
     const S = FOG_SCALE;
-    const deep = [0.02, 0.004, 0.035];
-    const tint = mix(this.color, [0, 0, 0], 0.82);
+    const deep = [0.004, 0.008, 0.004]; // near-black with a breath of green
+    const tint = mix(this.color, [0, 0, 0], 0.95); // lime is bright: only a hint of it in the black
     const [cx, cy] = anchors.center;
 
     const bg = ctx.createRadialGradient(cx * S, cy * S, 0, cx * S, cy * S, Math.max(W, H) * 0.8);
-    bg.addColorStop(0, rgba(mix(tint, this.color, 0.1 + this.voice * 0.08), 1));
-    bg.addColorStop(0.5, rgba(mix(tint, deep, 0.55), 1));
+    bg.addColorStop(0, rgba(mix(tint, this.color, 0.04 + this.voice * 0.06), 1));
+    bg.addColorStop(0.45, rgba(mix(tint, deep, 0.7), 1));
     bg.addColorStop(1, rgba(deep, 1));
     ctx.globalCompositeOperation = "source-over";
     ctx.fillStyle = bg;
     ctx.fillRect(0, 0, W, H);
 
-    const fogColor = mix(this.color, [1, 1, 1], 0.15);
+    const fogColor = mix(this.color, [1, 1, 1], 0.25);
+    const FOG_STRENGTH = 0.45; // a pale, thin mist: thick lime fog would turn the black olive
     const t = this.reducedMotion ? 0 : this.time;
     for (const blob of this.blobs) {
       const bx = (((blob.x + t * blob.speed + 2) % 1.4) - 0.2) * W;
       const by = (blob.y + Math.sin(t * 0.05 + blob.seed) * 0.05) * H;
       const r = blob.r * Math.max(W, H) * (1 + Math.sin(t * 0.07 + blob.seed) * 0.12);
       const g = ctx.createRadialGradient(bx, by, 0, bx, by, r);
-      g.addColorStop(0, rgba(fogColor, blob.a * (blob.front ? 0.6 : 1)));
+      g.addColorStop(0, rgba(fogColor, blob.a * FOG_STRENGTH * (blob.front ? 0.6 : 1)));
       g.addColorStop(1, rgba(fogColor, 0));
       ctx.fillStyle = g;
       ctx.fillRect(bx - r, by - r, r * 2, r * 2);

@@ -158,7 +158,7 @@ add_("five", "five", 0.2);
 add_("thumbsUp", "thumbsUp", 0.03, { thumbsUp: true });
 // near misses
 add_(null, "five", -0.05, { label: "fiveTogether" }); // all out but held together (fingers converge a little)
-add_(null, "three", 0.12);
+add_(null, "three", 0.12); // three fingers: no one-shot gesture, it scrolls instead
 add_(null, "one", 0.1); // pointing: no one-shot gesture, it starts following instead
 add_(null, "oneThumbOut", 0.1);
 add_(null, "oneMiddleHalf", 0.1);
