@@ -15,6 +15,10 @@
   --sans: "Space Grotesk", system-ui, sans-serif;
   --mono: "JetBrains Mono", ui-monospace, monospace;
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  /* layout: one chat box fills the screen under the top bar, the sphere sits at its top */
+  --top: 76px;
+  --edge: 20px;
+  --sphere-h: clamp(210px, 46vh, 500px);
   color-scheme: dark;
 }
 
@@ -54,18 +58,24 @@ body {
   height: 100%;
 }
 
-/* the ball fills the space left of the conversation panel */
+/* the ball sits at the top of the chat box, over .sphere-slot */
 #ball {
   position: fixed;
-  top: 0;
-  left: 0;
-  bottom: 0;
-  right: calc(min(440px, 32vw) + 20px);
+  z-index: 2;
+  top: calc(var(--top) + 6px);
+  left: var(--edge);
+  right: var(--edge);
+  height: var(--sphere-h);
+  transition: height 0.9s var(--ease);
 }
+
+/* once the conversation starts the sphere steps back a little to give the messages room */
+body.started { --sphere-h: clamp(190px, 38vh, 420px); }
 
 /* the constellation: drawn over the ball, never catches the mouse */
 #mind {
   position: fixed;
+  z-index: 3;
   inset: 0;
   width: 100%;
   height: 100%;
@@ -74,6 +84,7 @@ body {
 
 .grain {
   position: fixed;
+  z-index: 4;
   inset: -50%;
   pointer-events: none;
   opacity: 0.09;
@@ -93,10 +104,11 @@ body {
 
 .vignette {
   position: fixed;
+  z-index: 4;
   inset: 0;
   pointer-events: none;
   background:
-    radial-gradient(ellipse 75% 70% at 38% 48%, transparent 45%, rgba(0, 0, 0, 0.6) 100%),
+    radial-gradient(ellipse 80% 75% at 50% 38%, transparent 45%, rgba(0, 0, 0, 0.6) 100%),
     linear-gradient(180deg, rgba(0, 0, 0, 0.35), transparent 22%);
 }
 
@@ -143,6 +155,7 @@ svg {
 
 .topbar {
   position: fixed;
+  z-index: 5;
   top: 20px;
   left: 20px;
   right: 20px;
@@ -276,8 +289,8 @@ body[data-state="speaking"] .dot { background: #f0ffc8; animation-duration: 0.6s
 
 .scroll-cue {
   position: absolute;
-  right: 14px;
-  top: 50%;
+  right: 22px;
+  top: calc(var(--sphere-h) + 40px);
   display: flex;
   align-items: center;
   gap: 6px;
@@ -291,7 +304,7 @@ body[data-state="speaking"] .dot { background: #f0ffc8; animation-duration: 0.6s
   text-transform: uppercase;
   opacity: 0;
   pointer-events: none;
-  transform: translate(8px, -50%);
+  transform: translateX(8px);
   transition: opacity 0.25s var(--ease), transform 0.25s var(--ease);
 }
 
@@ -303,7 +316,7 @@ body[data-state="speaking"] .dot { background: #f0ffc8; animation-duration: 0.6s
 
 body.hand-scrolling .scroll-cue {
   opacity: 1;
-  transform: translate(0, -50%);
+  transform: none;
   box-shadow: 0 0 18px rgba(var(--acid), 0.25);
 }
 
@@ -311,7 +324,7 @@ body.hand-scrolling .scroll-cue {
 .scroll-cue[data-dir="down"] svg { transform: translateY(2px); }
 
 /* the conversation's edge lights up while the hand is scrolling it */
-body.hand-scrolling .panel {
+body.hand-scrolling .chat {
   border-color: rgba(var(--lime), 0.36);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.12),
@@ -322,10 +335,12 @@ body.hand-scrolling .panel {
 
 /* ---------- camera preview and gesture debug ---------- */
 
+/* top-right corner of the chat box, clear of the input bar */
 .cam {
   position: fixed;
-  left: 20px;
-  bottom: 20px;
+  z-index: 5;
+  right: calc(var(--edge) + 14px);
+  top: calc(var(--top) + 14px);
   width: 160px;
   padding: 0;
   border-radius: 16px;
@@ -361,8 +376,8 @@ body.hand-scrolling .panel {
 
 .gesture-debug {
   position: fixed;
-  left: 20px;
-  top: 84px;
+  left: calc(var(--edge) + 14px);
+  top: calc(var(--top) + 44px);
   width: 210px;
   padding: 12px 14px;
   border-radius: 16px;
@@ -402,54 +417,71 @@ body.hand-scrolling .panel {
   font-size: 11px;
 }
 
-/* ---------- conversation panel ---------- */
+/* ---------- the chat box: fills the screen, the sphere lives at its top ---------- */
 
-.panel {
+.chat {
   position: fixed;
-  top: 84px;
-  right: 20px;
-  bottom: 20px;
-  width: min(420px, calc(32vw - 20px));
-  min-width: 330px;
+  z-index: 1;
+  inset: var(--top) var(--edge) var(--edge);
   display: flex;
   flex-direction: column;
-  border-radius: 26px;
+  border-radius: 28px;
+  border: 1px solid var(--line);
+  /* no backdrop blur: the sphere and fog must stay crisp behind and inside the box */
+  background:
+    radial-gradient(ellipse 60% 45% at 50% 28%, rgba(var(--acid), 0.05), transparent 70%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.025), rgba(3, 6, 3, 0.35) 70%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 30px 80px -30px rgba(0, 0, 0, 0.8);
   overflow: hidden;
   opacity: 0;
-  transform: translateX(16px);
-  animation: panel-in 1.2s 0.7s var(--ease) forwards;
+  transform: translateY(12px);
+  animation: chat-in 1.2s 0.5s var(--ease) forwards;
+  transition: border-color 0.3s, box-shadow 0.3s;
 }
 
-@keyframes panel-in {
+@keyframes chat-in {
   to { opacity: 1; transform: none; }
 }
 
-.panel-head {
+.chat-head {
+  position: absolute;
+  top: 16px;
+  left: 22px;
   display: flex;
   align-items: baseline;
-  justify-content: space-between;
-  padding: 20px 22px 14px;
-  border-bottom: 1px solid rgba(var(--lime), 0.1);
+  gap: 12px;
 }
 
-.panel-head h1 {
+.chat-head h1 {
   margin: 0;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 400;
-  letter-spacing: 0.08em;
-  color: var(--ink-dim);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
 }
 
-.panel-head .mono {
+.chat-head .mono {
   font-size: 10px;
   letter-spacing: 0.14em;
   color: var(--ink-faint);
 }
 
+.sphere-slot {
+  flex: none;
+  height: calc(var(--sphere-h) + 6px);
+  transition: height 0.9s var(--ease);
+}
+
+/* messages: a centred column under the sphere */
 #log {
   flex: 1;
+  width: min(780px, 100%);
+  align-self: center;
   margin: 0;
-  padding: 18px 22px;
+  padding: 18px 24px 12px;
   list-style: none;
   overflow-y: auto;
   display: flex;
@@ -457,7 +489,7 @@ body.hand-scrolling .panel {
   gap: 18px;
   scrollbar-width: thin;
   scrollbar-color: rgba(var(--lime), 0.2) transparent;
-  mask-image: linear-gradient(transparent, #000 22px, #000 calc(100% - 10px), transparent);
+  mask-image: linear-gradient(transparent, #000 28px, #000 calc(100% - 10px), transparent);
 }
 
 .msg {
@@ -560,8 +592,9 @@ body.hand-scrolling .panel {
 .starters {
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
   gap: 8px;
-  padding: 0 16px 12px;
+  padding: 0 16px 14px;
   transition: opacity 0.4s var(--ease);
 }
 
@@ -585,25 +618,29 @@ body.started .starters {
   display: none;
 }
 
+/* the input: a full-width bar along the bottom of the chat box */
 #composer {
   display: flex;
   align-items: flex-end;
   gap: 8px;
-  margin: 0 14px;
-  padding: 8px 8px 8px 16px;
-  border-radius: 20px;
-  background: rgba(3, 6, 3, 0.42);
-  border: 1px solid rgba(var(--lime), 0.16);
-  transition: border-color 0.3s;
+  margin: 0 16px;
+  padding: 10px 10px 10px 20px;
+  border-radius: 22px;
+  background: linear-gradient(180deg, rgba(var(--lime), 0.06), rgba(var(--lime), 0.02)), rgba(3, 6, 3, 0.7);
+  border: 1px solid rgba(var(--lime), 0.2);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  transition: border-color 0.3s, box-shadow 0.3s;
 }
 
 #composer:focus-within {
   border-color: var(--line-strong);
+  box-shadow: 0 0 0 4px rgba(var(--lime), 0.06), 0 0 30px -12px rgba(var(--acid), 0.4);
 }
 
 #input {
   flex: 1;
-  min-height: 38px;
+  min-height: 40px;
   max-height: 140px;
   padding: 9px 0;
   resize: none;
@@ -683,8 +720,9 @@ body.started .starters {
 
 #toast {
   position: fixed;
+  z-index: 6;
   left: 50%;
-  bottom: 28px;
+  bottom: 120px;
   max-width: min(440px, calc(100% - 32px));
   padding: 11px 18px;
   border-radius: 14px;
@@ -701,31 +739,35 @@ body.started .starters {
   transform: translate(-50%, 0);
 }
 
-/* ---------- small screens: the conversation becomes a bottom sheet ---------- */
+/* ---------- small screens: the same chat box, tighter ---------- */
 
 @media (max-width: 860px) {
+  :root {
+    --top: 62px;
+    --edge: 10px;
+    --sphere-h: clamp(170px, 34dvh, 320px);
+  }
+  body.started { --sphere-h: clamp(150px, 28dvh, 260px); }
   .topbar { top: 12px; left: 12px; right: 12px; gap: 8px; }
   .brand .sub, .status .sep, .status #provider, .status .mood, .pill span { display: none; }
   .pill { padding: 9px 11px; }
-  .panel {
-    top: auto;
-    left: 12px;
-    right: 12px;
-    bottom: 12px;
-    width: auto;
-    min-width: 0;
-    height: 46dvh;
-    border-radius: 22px;
-    transform: translateY(16px);
-  }
-  #ball { top: 56px; right: 0; bottom: calc(46dvh + 12px); }
+  .chat { border-radius: 22px; }
+  .chat-head { top: 12px; left: 16px; }
+  #log { padding: 12px 14px 10px; }
+  #composer { margin: 0 10px 10px; padding-left: 16px; }
   .hint { display: none; }
-  #composer { margin-bottom: 12px; }
-  .cam { left: auto; right: 12px; top: 64px; bottom: auto; width: 112px; }
-  .cam canvas { width: 112px; height: 84px; }
-  .gesture-debug { top: 64px; left: 12px; width: 180px; font-size: 10px; }
-  .starters { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  .cam { right: calc(var(--edge) + 10px); top: calc(var(--top) + 10px); width: 96px; }
+  .cam canvas { width: 96px; height: 72px; }
+  .gesture-debug { left: calc(var(--edge) + 10px); top: calc(var(--top) + 36px); width: 172px; font-size: 10px; }
+  .starters { flex-wrap: nowrap; justify-content: flex-start; overflow-x: auto; scrollbar-width: none; padding: 0 10px 10px; }
   .starters button { flex: none; }
+  #toast { bottom: 90px; }
+}
+
+/* short screens (landscape laptops with big zoom): give the messages more room */
+@media (max-height: 640px) {
+  :root, body.started { --sphere-h: clamp(150px, 34vh, 240px); }
+  .hint { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -6,13 +6,13 @@ Nelle is an AI you talk to in the browser. She lives inside a crystal ball of cr
 
 > Built by [Rohan Jaswara](https://rohanjaswara88-art.github.io/portfolio/), a BCA (AI & ML) student.
 
-![Nelle answering a coding question: the constellation in the ball forms </>](docs/screenshots/code.jpg)
+![Nelle answering a coding question: one full-size chat box with the sphere at its top and the conversation underneath](docs/screenshots/code.jpg)
 
 | Idle | Searching | Love, concerned |
 |---|---|---|
-| ![Idle: a turning network globe](docs/screenshots/idle.jpg) | ![Searching: the points drift and re-link](docs/screenshots/thinking.jpg) | ![A heart for a breakup message, tinted teal-green with concern](docs/screenshots/love.jpg) |
+| ![Idle: a turning network globe](docs/screenshots/idle.jpg) | ![Searching: the dust swirls in as she takes the message in](docs/screenshots/thinking.jpg) | ![After a breakup message the sphere softens with concern](docs/screenshots/love.jpg) |
 
-On a phone the conversation becomes a bottom sheet under the ball.
+The whole screen is one chat box: the sphere lives at its top and reacts from there, the messages scroll in a centred column underneath, and the input runs the full width along the bottom. Once the conversation starts, the sphere steps back a little to give the messages room. On a phone it is the same box, just tighter.
 
 ## What she does
 
@@ -41,7 +41,7 @@ Press the **Camera** pill in the top bar (it stays off until you turn it on, and
 | ✌️ Two fingers (index and middle up, ring and pinky down) | The constellation blooms into a flower, petal after petal, while arcs circle the rim. |
 | 🖐️ All five fingers, spread | A smiling face with happy ^ ^ eyes; her mood turns happy for a moment and the dust gets one playful kick. |
 | 👍 Thumbs up | "HI BRO" is spelled out with glowing particles streaming up from the dust, then they scatter back. |
-| 🤟 Three fingers up (index, middle, ring), moved up or down | Scrolls the conversation the way your hand moves (down scrolls down), with a little glide when you stop. A "3-finger scroll" cue appears on the panel and the dust drifts with you. |
+| 🤟 Three fingers up (index, middle, ring), moved up or down | Scrolls the conversation the way your hand moves (down scrolls down), with a little glide when you stop. A "3-finger scroll" cue appears in the chat box and the dust drifts with you. |
 | ☝️ Point with your index finger and move it | The sphere follows your fingertip: a glowing tip with a comet trail appears inside the ball, the plasma dust is dragged hard the way you move and leans toward it, nearby constellation points are pulled in on threads of light, quick moves throw the dust and spark the rim, and a fast wave sends ripples across. Lower or open your finger and it lets go. |
 
 Following only happens while you point (index up, the other three fingers folded; the thumb can do anything), so ordinary hand movement doesn't stir anything. Hold a pose still for about a tenth of a second. Each gesture fires once per showing: lower your hand (or change pose), then show it again; the same gesture can't repeat within 2.5 seconds. Gestures are ignored while one is already playing, and for a moment after you type, so hands on the keyboard don't set anything off. Each shape lasts about 2.5 seconds, then the ball goes back to the topic shape (or to thinking). With *reduce motion* turned on in your system settings, the effects are shorter and calmer.

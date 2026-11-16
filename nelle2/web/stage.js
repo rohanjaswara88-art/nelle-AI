@@ -94,6 +94,8 @@ export class Stage {
     this.loop = this.loop.bind(this);
     this.resize = this.resize.bind(this);
     addEventListener("resize", this.resize);
+    // the sphere's slot shrinks a little once the chat starts, so follow the box itself too
+    new ResizeObserver(this.resize).observe(this.ballContainer);
     document.addEventListener("visibilitychange", () => (document.hidden ? this.stop() : this.start()));
     this.resize();
   }
@@ -116,10 +118,10 @@ export class Stage {
   resize() {
     this.fog.width = Math.round(innerWidth * FOG_SCALE);
     this.fog.height = Math.round(innerHeight * FOG_SCALE);
-    // as big as fits, keeping a margin so the glow and the found ripple stay on screen
+    // as big as fits its slot at the top of the chat box, keeping a margin so the glow isn't clipped
     const { width, height } = this.ballContainer.getBoundingClientRect();
-    const room = Math.min(width * 0.8, height * 0.78);
-    this.baseSize = Math.max(0.42, Math.min(0.72, room / Math.max(1, Math.min(width, height))));
+    const room = Math.min(width * 0.8, height * 0.8);
+    this.baseSize = Math.max(0.42, Math.min(0.8, room / Math.max(1, Math.min(width, height))));
   }
 
   setMood(emotion, intensity) {

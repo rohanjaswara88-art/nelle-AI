@@ -50,11 +50,13 @@
       </div>
     </header>
 
-    <main class="panel glass">
-      <div class="panel-head">
+    <main class="chat">
+      <div class="chat-head">
         <h1>Conversation</h1>
         <span id="memory" class="mono">MEM 00/12</span>
       </div>
+      <!-- the sphere (#ball) is drawn over this space, inside the chat box -->
+      <div class="sphere-slot" aria-hidden="true"></div>
       <ol id="log" aria-live="polite"></ol>
       <div id="scroll-cue" class="scroll-cue" aria-hidden="true">
         <svg viewBox="0 0 24 24"><path d="M12 4v16M6 10l6-6 6 6M6 14l6 6 6-6" /></svg>
