@@ -14,6 +14,8 @@
 
 import { Geometry, Mesh, Program, RenderTarget, Renderer, Texture, Triangle } from "https://cdn.jsdelivr.net/npm/ogl@1.0.11/+esm";
 
+const HAND_BRUSH_SIZE = 0.17; // squared reach of a hand's stir, in ball radii (the mouse uses 0.07)
+
 const BALL_PRESETS = {
   plasma: {
     color: '#F25BD0',
@@ -711,6 +713,7 @@ uniform float uDt;
 uniform float uReset;
 uniform vec4 uBrush;
 uniform float uBrushPower;
+uniform float uBrushSize;
 uniform vec4 uKick;
 
 layout(location = 0) out vec4 outOffset;
@@ -747,7 +750,7 @@ void main() {
   vec3 acc = -k * o - 1.5 * sqrt(k) * v;
 
   vec2 gap = p.xy - uBrush.xy;
-  float touch = exp(-dot(gap, gap) / 0.07) * uBrushPower;
+  float touch = exp(-dot(gap, gap) / uBrushSize) * uBrushPower;
   acc += (vec3(uBrush.zw, 0.0) - v) * touch * 14.0;
   float pace = length(v);
   if (pace > 1e-4) {
@@ -936,6 +939,7 @@ export function createCrystalBall(container, initial = {}) {
     uReset: { value: 1 },
     uBrush: { value: [0, 0, 0, 0] },
     uBrushPower: { value: 0 },
+    uBrushSize: { value: 0.07 },
     uKick: { value: [0, 0, 0, 0] }
   };
 
@@ -1297,6 +1301,7 @@ export function createCrystalBall(container, initial = {}) {
       stirUniforms.uDt.value = Math.min(dt, 1 / 30);
       stirUniforms.uBrush.value = [brush.x, brush.y, brush.vx * cap, brush.vy * cap];
       stirUniforms.uBrushPower.value = brushPower;
+      stirUniforms.uBrushSize.value = handOn ? HAND_BRUSH_SIZE : 0.07; // a hand stirs a wider swathe
       stirUniforms.uKick.value = kick ? [kick.x, kick.y, kick.strength, 0] : [0, 0, 0, 0];
       stirUniforms.tOffset.value = layer.read.textures[0];
       stirUniforms.tVelocity.value = layer.read.textures[1];
@@ -1410,7 +1415,7 @@ export function createCrystalBall(container, initial = {}) {
      * (vx, vy) its velocity in ball radii per second, power 0..1. Call every frame while it moves.
      */
     push(x, y, vx, vy, power = 1) {
-      Object.assign(hand, { x, y, vx, vy, power: clamp(power, 0, 1) });
+      Object.assign(hand, { x, y, vx, vy, power: clamp(power, 0, 2.5) });
       start();
     },
     /** Tilt the dust cloud toward a point in ball space; fades out unless called again. */

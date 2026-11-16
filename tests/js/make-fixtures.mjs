@@ -117,6 +117,8 @@ const POSES = {
   fist: { thumb: "folded", ...ALL("folded") },
   three: { thumb: "folded", index: "extended", middle: "extended", ring: "extended", pinky: "folded" },
   one: { thumb: "folded", index: "extended", middle: "folded", ring: "folded", pinky: "folded" },
+  oneThumbOut: { thumb: "out", index: "extended", middle: "folded", ring: "folded", pinky: "folded" },
+  oneMiddleHalf: { thumb: "folded", index: "extended", middle: "half", ring: "folded", pinky: "folded" },
   twoRingHalf: { thumb: "folded", index: "extended", middle: "extended", ring: "half", pinky: "folded" },
   twoMiddleHalf: { thumb: "folded", index: "extended", middle: "half", ring: "folded", pinky: "folded" },
   four: { thumb: "folded", ...ALL("extended") },
@@ -157,7 +159,9 @@ add_("thumbsUp", "thumbsUp", 0.03, { thumbsUp: true });
 // near misses
 add_(null, "five", -0.05, { label: "fiveTogether" }); // all out but held together (fingers converge a little)
 add_(null, "three", 0.12);
-add_(null, "one", 0.1);
+add_(null, "one", 0.1); // pointing: no one-shot gesture, it starts following instead
+add_(null, "oneThumbOut", 0.1);
+add_(null, "oneMiddleHalf", 0.1);
 add_(null, "twoRingHalf", 0.14);
 add_(null, "twoMiddleHalf", 0.14);
 add_(null, "four", 0.18);

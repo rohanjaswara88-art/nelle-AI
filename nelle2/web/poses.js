@@ -94,6 +94,25 @@ export function isFive(hand, states = fingerStates(hand), aspect = DEFAULT_ASPEC
   return spread > palmWidth(hand, aspect) * SPREAD_RATIO;
 }
 
+/**
+ * Pointing: index extended, middle, ring and pinky folded, thumb anything. Not a one-shot gesture:
+ * while it holds, the sphere follows the index fingertip.
+ */
+export function isPoint(hand, states = fingerStates(hand)) {
+  return (
+    states.index === "extended" &&
+    states.middle === "folded" &&
+    states.ring === "folded" &&
+    states.pinky === "folded"
+  );
+}
+
+/** The index fingertip, the point that leads while pointing. */
+export function indexTip(hand) {
+  const tip = hand[FINGERS.index.tip];
+  return { x: tip.x, y: tip.y };
+}
+
 /** Thumbs up: thumb extended and pointing up, the other four folded. */
 export function isThumbsUp(hand, states = fingerStates(hand), aspect = DEFAULT_ASPECT) {
   if (states.thumb !== "extended") return false;
@@ -168,8 +187,11 @@ export class PoseGate {
 
 // ---------- continuous hand movement ----------
 
-export const SMOOTHING = 0.35; // exponential filter weight for each new palm position
+export const SMOOTHING = 0.35; // exponential filter weight for each new position
 export const DEAD_ZONE = 0.012; // in frame units: smaller wobbles are ignored
+// The fingertip is followed more tightly than a palm would be, so it feels immediate.
+export const FINGER_SMOOTHING = 0.55;
+export const FINGER_DEAD_ZONE = 0.007;
 export const WAVE_SPEED = 0.9; // frame widths per second before a direction counts for a wave
 export const WAVE_WINDOW_MS = 1200;
 export const WAVE_TURNS = 2;
@@ -180,7 +202,9 @@ export const WAVE_COOLDOWN_MS = 1500;
  * leaves the position still. Also spots a wave: the hand changing direction quickly twice or more.
  */
 export class MotionFilter {
-  constructor() {
+  constructor({ smoothing = SMOOTHING, deadZone = DEAD_ZONE } = {}) {
+    this.smoothing = smoothing;
+    this.deadZone = deadZone;
     this.reset();
   }
 
@@ -210,10 +234,10 @@ export class MotionFilter {
     const dt = Math.max(1e-3, (now - this.time) / 1000);
     this.time = now;
     this.smooth = {
-      x: this.smooth.x + (point.x - this.smooth.x) * SMOOTHING,
-      y: this.smooth.y + (point.y - this.smooth.y) * SMOOTHING,
+      x: this.smooth.x + (point.x - this.smooth.x) * this.smoothing,
+      y: this.smooth.y + (point.y - this.smooth.y) * this.smoothing,
     };
-    const moved = Math.hypot(this.smooth.x - this.anchor.x, this.smooth.y - this.anchor.y) > DEAD_ZONE;
+    const moved = Math.hypot(this.smooth.x - this.anchor.x, this.smooth.y - this.anchor.y) > this.deadZone;
     const next = moved ? { ...this.smooth } : this.anchor;
     const vx = (next.x - this.anchor.x) / dt;
     const vy = (next.y - this.anchor.y) / dt;

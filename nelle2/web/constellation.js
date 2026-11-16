@@ -11,6 +11,9 @@ const NODES = 120; // topic shapes use up to about 70; words and flowers use mor
 const TAU = Math.PI * 2;
 const LINK_DISTANCE = 0.42; // in ball units, for the drifting "browsing" web
 const MAX_DPR = 2;
+const FINGER_REACH = 0.5; // constellation points this close to the fingertip (in ball radii) are pulled in
+const FINGER_PULL = 0.45;
+const TRAIL_SECONDS = 0.45;
 const ARRIVE_SECONDS = 0.32; // a gesture group's points are nearly in place this long after setting off
 const LINE_SECONDS = 0.3; // then its lines draw in over this long
 
@@ -284,8 +287,11 @@ export class Constellation {
     this.effect = null; // a gesture shape playing over the top, see play()
     this.glow = 1;
     this.drawTime = 1.3;
-    this.handTarget = null; // [x, y] in -1..1 while a hand is in view
-    this.hand = [0, 0]; // eased: the constellation turns and drifts toward the hand
+    this.handTarget = null; // [x, y] in ball radii (y up) while a finger is pointing
+    this.hand = [0, 0]; // eased: the constellation turns and drifts toward the finger
+    this.finger = [0, 0]; // eased quickly: the glowing fingertip
+    this.presence = 0; // 0..1, fades the fingertip glow, trail and pull in and out
+    this.trail = [];
     this.shape = buildShape("general");
     this.yaw = 0;
     this.pitch = 0.32;
@@ -349,9 +355,15 @@ export class Constellation {
     for (const node of this.nodes) node.home = randomInShell(0.42, 0.9);
   }
 
-  /** Where the user's hand is, in -1..1 (y up), or null when it leaves. */
+  /** Where the user's pointing fingertip is, in ball radii (y up), or null when not pointing. */
   setHand(point) {
-    this.handTarget = point;
+    if (!point) {
+      this.handTarget = null;
+      return;
+    }
+    const reach = Math.hypot(point[0], point[1]);
+    const inside = reach > 0.95 ? 0.95 / reach : 1; // keep the fingertip inside the glass
+    this.handTarget = [point[0] * inside, point[1] * inside];
   }
 
   /** True while a gesture shape is playing. */
@@ -473,8 +485,15 @@ export class Constellation {
     }
 
     const [hx, hy] = this.handTarget ?? [0, 0];
-    const follow = this.handTarget ? 5 : 1.5; // snappy toward the hand, slow back to centre
+    const follow = this.handTarget ? 7 : 1.5; // snappy toward the finger, slow back to centre
     this.hand = [ease(this.hand[0], hx, follow, dt), ease(this.hand[1], hy, follow, dt)];
+    if (this.handTarget) {
+      if (this.presence < 0.05) this.finger = [...this.handTarget]; // appear where the finger is
+      this.finger = [ease(this.finger[0], hx, 16, dt), ease(this.finger[1], hy, 16, dt)];
+      this.trail.push({ x: this.finger[0], y: this.finger[1], t: this.time });
+    }
+    this.presence = ease(this.presence, this.handTarget ? 1 : 0, this.handTarget ? 6 : 2.5, dt);
+    this.trail = this.trail.filter((p) => this.time - p.t < TRAIL_SECONDS);
 
     this.moveNodes(dt, t, motion);
     const projected = this.project(ball, voice);
@@ -504,15 +523,20 @@ export class Constellation {
     // the hand turns the constellation toward itself and pulls it a little that way
     const [hx, hy] = this.hand;
     const turn = this.reducedMotion ? 0.4 : 1;
-    const yaw = this.yaw + hx * 0.55 * turn;
-    const pitch = this.pitch - hy * 0.4 * turn;
+    const yaw = this.yaw + hx * 0.85 * turn;
+    const pitch = this.pitch - hy * 0.55 * turn;
     const cy = Math.cos(yaw);
     const sy = Math.sin(yaw);
     const cp = Math.cos(pitch);
     const sp = Math.sin(pitch);
     const scale = ball.radius * 0.62 * (1 + voice * 0.05);
-    const shiftX = hx * ball.radius * 0.14 * turn;
-    const shiftY = -hy * ball.radius * 0.1 * turn;
+    const shiftX = hx * ball.radius * 0.22 * turn;
+    const shiftY = -hy * ball.radius * 0.16 * turn;
+    // the fingertip is a magnet: nearby points are drawn toward it and light up
+    const fx = ball.x + this.finger[0] * ball.radius;
+    const fy = ball.y - this.finger[1] * ball.radius;
+    const reach = FINGER_REACH * ball.radius;
+    const pull = FINGER_PULL * this.presence * turn;
     return this.nodes.map((node) => {
       const [x, y, z] = node.pos;
       const x1 = x * cy + z * sy;
@@ -520,11 +544,16 @@ export class Constellation {
       const y2 = y * cp - z1 * sp;
       const z2 = y * sp + z1 * cp;
       const perspective = 2.6 / (2.6 - z2);
-      return {
-        x: ball.x + shiftX + x1 * scale * perspective,
-        y: ball.y + shiftY - y2 * scale * perspective,
-        depth: clamp01((z2 + 1) / 2),
-      };
+      let px = ball.x + shiftX + x1 * scale * perspective;
+      let py = ball.y + shiftY - y2 * scale * perspective;
+      const d = Math.hypot(fx - px, fy - py);
+      const near = pull > 0.01 && d < reach ? (1 - d / reach) ** 2 : 0;
+      if (near) {
+        px += (fx - px) * near * pull;
+        py += (fy - py) * near * pull;
+        node.lit = Math.max(node.lit, near * this.presence * 1.4);
+      }
+      return { x: px, y: py, depth: clamp01((z2 + 1) / 2), near };
     });
   }
 
@@ -558,6 +587,52 @@ export class Constellation {
       }
     }
     return out;
+  }
+
+  /** The pointing fingertip: a comet trail, threads to the points it pulls, and a bright core. */
+  paintFinger(projected, ball, tone, unit) {
+    const { ctx } = this;
+    const a = this.presence;
+    if (a < 0.02) return;
+    const at = ([x, y]) => [ball.x + x * ball.radius, ball.y - y * ball.radius];
+
+    // comet trail: older segments thinner and fainter
+    for (let i = 1; i < this.trail.length; i++) {
+      const age = (this.time - this.trail[i].t) / TRAIL_SECONDS;
+      const [x0, y0] = at([this.trail[i - 1].x, this.trail[i - 1].y]);
+      const [x1, y1] = at([this.trail[i].x, this.trail[i].y]);
+      for (const [width, alpha] of [[6, 0.12], [1.8, 0.7]]) {
+        ctx.lineWidth = width * unit * (1 - age);
+        ctx.strokeStyle = tone(alpha * (1 - age) * a);
+        ctx.beginPath();
+        ctx.moveTo(x0, y0);
+        ctx.lineTo(x1, y1);
+        ctx.stroke();
+      }
+    }
+
+    // threads from the fingertip to the points it is pulling
+    const [fx, fy] = at(this.finger);
+    ctx.lineWidth = 0.9 * unit;
+    for (const p of projected) {
+      if (!p.near) continue;
+      ctx.strokeStyle = tone(0.55 * p.near * a);
+      ctx.beginPath();
+      ctx.moveTo(fx, fy);
+      ctx.lineTo(p.x, p.y);
+      ctx.stroke();
+    }
+
+    // the fingertip itself: a white-hot core in a pink halo that breathes
+    const halo = unit * (16 + Math.sin(this.time * 6) * 2.5);
+    const glow = ctx.createRadialGradient(fx, fy, 0, fx, fy, halo);
+    glow.addColorStop(0, `rgba(255,255,255,${0.95 * a})`);
+    glow.addColorStop(0.18, tone(0.75 * a));
+    glow.addColorStop(1, tone(0));
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(fx, fy, halo, 0, TAU);
+    ctx.fill();
   }
 
   spawnPulses(dt, voice) {
@@ -625,6 +700,8 @@ export class Constellation {
       ctx.arc(p.x, p.y, size, 0, TAU);
       ctx.fill();
     }
+
+    this.paintFinger(projected, ball, tone, unit);
 
     // pulses: sparks of thought running along the lines
     for (const pulse of this.pulses) {

@@ -30,8 +30,10 @@ const SEARCH_AFTER = 1.4; // seconds of thinking before the ball starts "searchi
 const PING_EVERY = 1.1;
 const GESTURE_HOLD = 2.5; // seconds a gesture shape stays up
 const HAND_REACH = 1.0; // the camera frame's edges map to the ball's rim
-const KICK_SPEED = 0.6; // hand speed (ball radii per second) before a flick also jolts the dust
-const KICK_EVERY = 0.22;
+const KICK_SPEED = 0.35; // finger speed (ball radii per second) before a move also jolts the dust
+const KICK_EVERY = 0.12;
+const ARC_SPEED = 1.5; // faster than this, the rim sparks where the finger is heading
+const ARC_EVERY = 0.16;
 
 const rand = (a, b) => a + Math.random() * (b - a);
 const ease = (current, target, rate, dt) => current + (target - current) * (1 - Math.exp(-rate * dt));
@@ -54,6 +56,7 @@ export class Stage {
     this.override = null; // { emotion, intensity, until }: a brief mood from a gesture
     this.timeline = []; // [{ at, run }]: small timed steps for gesture animations
     this.lastKick = 0;
+    this.lastArc = 0;
     this.level = 0;
     this.voice = 0;
     this.time = 0;
@@ -238,9 +241,9 @@ export class Stage {
   }
 
   /**
-   * Hand movement, every detection frame: `move` is { x, y, vx, vy, wave } in 0..1 screen space
-   * (already mirrored) or null when the hand leaves. The dust is brushed the way the hand moves and
-   * leans toward it; a quick flick jolts it and a wave sends ripples across.
+   * Pointing finger, every detection frame: `move` is { x, y, vx, vy, wave } in 0..1 screen space
+   * (already mirrored) or null when not pointing. The dust is dragged hard the way the finger moves
+   * and leans toward it, quick moves jolt it and spark the rim, and a wave sends ripples across.
    */
   handMove(move) {
     this.mind.setHand(move ? [(move.x - 0.5) * 2, (0.5 - move.y) * 2] : null);
@@ -251,12 +254,18 @@ export class Stage {
     const vy = -move.vy * 2 * HAND_REACH;
     const speed = Math.hypot(vx, vy);
     const calm = this.reducedMotion ? 0.4 : 1;
-    this.ball.push(x, y, vx * calm, vy * calm, Math.min(1, speed * 0.6)); // only movement stirs; stillness just leans
-    this.ball.lean(x * 0.9, y * 0.6, 0.8 * calm);
+    // only movement stirs (a still finger just leans); fast moves drag the dust well past the finger
+    this.ball.push(x, y, vx * 1.5 * calm, vy * 1.5 * calm, Math.min(2.4, speed * 1.3) * calm);
+    this.ball.lean(x * 1.4, y * 1.1, calm);
     if (speed > KICK_SPEED && this.time - this.lastKick > KICK_EVERY) {
       this.lastKick = this.time;
-      const lead = 0.25; // jolt a little ahead of the hand, so the dust is thrown the way it moves
-      this.ball.kick(x + (vx / speed) * lead, y + (vy / speed) * lead, Math.min(0.9, speed * 0.3) * calm);
+      const lead = 0.3; // jolt a little ahead of the finger, so the dust is thrown the way it moves
+      this.ball.kick(x + (vx / speed) * lead, y + (vy / speed) * lead, Math.min(1.5, 0.3 + speed * 0.45) * calm);
+    }
+    if (!this.reducedMotion && speed > ARC_SPEED && this.time - this.lastArc > ARC_EVERY) {
+      this.lastArc = this.time;
+      this.ball.arc(Math.atan2(vy, vx), 0.8 + Math.min(0.8, speed * 0.2));
+      this.ball.surge(Math.min(0.8, speed * 0.25));
     }
     if (move.wave) this.wave(Math.sign(vx) || 1);
   }

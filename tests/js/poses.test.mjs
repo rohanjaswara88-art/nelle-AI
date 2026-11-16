@@ -5,7 +5,7 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { MotionFilter, PoseGate, fingerStates, isFive, isThumbsUp, isTwo, palmCenter } from "../../nelle2/web/poses.js";
+import { MotionFilter, PoseGate, fingerStates, indexTip, isFive, isPoint, isThumbsUp, isTwo, palmCenter } from "../../nelle2/web/poses.js";
 import { classifyPose } from "../../nelle2/web/gestures.js";
 import { layoutText, GLYPHS } from "../../nelle2/web/strokefont.js";
 
@@ -35,6 +35,19 @@ test("each rule is strict on its own, not just by registry order", () => {
     assert.equal(isFive(hand.landmarks), hand.expect === "five", hand.name);
     assert.equal(isThumbsUp(hand.landmarks), hand.expect === "thumbsUp", hand.name);
   }
+});
+
+test("pointing is the index alone, with the thumb either way", () => {
+  const pointing = hands.filter((h) => /^(one|oneThumbOut)\//.test(h.name));
+  assert.equal(pointing.length, 12);
+  for (const hand of pointing) assert.equal(isPoint(hand.landmarks), true, hand.name);
+  const others = hands.filter((h) => !/^(one|oneThumbOut|thumbsUpIndexOut)\//.test(h.name) && !h.name.startsWith("recorded/"));
+  for (const hand of others) assert.equal(isPoint(hand.landmarks), false, hand.name);
+});
+
+test("the fingertip followed while pointing is landmark 8", () => {
+  const hand = Array.from({ length: 21 }, (_, i) => ({ x: i / 100, y: i / 50, z: 0 }));
+  assert.deepEqual(indexTip(hand), { x: 0.08, y: 0.16 });
 });
 
 test("palm centre is the mean of the wrist and four knuckles", () => {
@@ -129,6 +142,18 @@ test("a fast wave is spotted, a single swipe is not", () => {
     waved ||= wave.update({ x, y: 0.5 }, i * 33).wave;
   }
   assert.equal(waved, true);
+});
+
+test("a tighter filter follows a fingertip more closely", () => {
+  const loose = new MotionFilter();
+  const tight = new MotionFilter({ smoothing: 0.55, deadZone: 0.007 });
+  let a;
+  let b;
+  for (let i = 0; i < 4; i++) {
+    a = loose.update({ x: 0.3 + i * 0.05, y: 0.5 }, i * 33);
+    b = tight.update({ x: 0.3 + i * 0.05, y: 0.5 }, i * 33);
+  }
+  assert.ok(b.x > a.x, `${b.x} should lead ${a.x}`);
 });
 
 test("losing the hand resets movement", () => {

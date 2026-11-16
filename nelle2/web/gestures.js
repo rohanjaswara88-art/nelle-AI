@@ -7,7 +7,18 @@
 // To add a gesture: write a pose rule in poses.js, add { name, detect } to GESTURES below,
 // and map the name to an animation in app.js.
 
-import { MotionFilter, PoseGate, fingerStates, isFive, isThumbsUp, isTwo, palmCenter } from "./poses.js";
+import {
+  FINGER_DEAD_ZONE,
+  FINGER_SMOOTHING,
+  MotionFilter,
+  PoseGate,
+  fingerStates,
+  indexTip,
+  isFive,
+  isPoint,
+  isThumbsUp,
+  isTwo,
+} from "./poses.js";
 
 const VISION = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.2.0";
 const MODEL = "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task";
@@ -17,6 +28,10 @@ const MIN_CONFIDENCE = 0.7;
 // Detect on every other frame (~30 fps). If a detection costs more than this many ms on this
 // machine, back off to every third frame so the sphere's 60 fps animation never stutters.
 const SLOW_DETECT_MS = 12;
+// Following starts after the index points for this many detections in a row, and stops after
+// this many without, so a flicker of the pose neither starts nor breaks it.
+const POINT_START_FRAMES = 3;
+const POINT_STOP_FRAMES = 6;
 
 /** The gesture registry. Order matters only when two rules could match; the rules are mutually exclusive. */
 export const GESTURES = [
@@ -78,7 +93,8 @@ export class CameraError extends Error {
  * Watches one hand through the camera. Call tick(now) once per animation frame (from stage.onFrame);
  * it runs detection on every other frame. Events:
  *   gesture  { name }                       a registered pose was held (debounced, see PoseGate)
- *   move     { x, y, vx, vy, wave } | null  palm position in 0..1 screen space (mirrored), per second
+ *   move     { x, y, vx, vy, wave } | null  index fingertip in 0..1 screen space (mirrored), per
+ *                                           second, only while pointing; null when not following
  *   pose     { pose, states, score } | null every detection, for the debug overlay
  */
 export class GestureTracker {
@@ -88,7 +104,10 @@ export class GestureTracker {
     this.ctx = this.canvas.getContext("2d");
     this.listeners = {};
     this.gate = new PoseGate();
-    this.filter = new MotionFilter();
+    this.filter = new MotionFilter({ smoothing: FINGER_SMOOTHING, deadZone: FINGER_DEAD_ZONE });
+    this.following = false;
+    this.pointStreak = 0;
+    this.pointMiss = 0;
     this.running = false;
     this.frame = 0;
     this.every = 2;
@@ -124,7 +143,24 @@ export class GestureTracker {
   resetTracking() {
     this.gate.reset();
     this.filter.reset();
+    this.following = false;
+    this.pointStreak = 0;
+    this.pointMiss = 0;
     this.emit("move", null);
+  }
+
+  /** Point with the index finger to be followed; stop pointing (or leave) to let go. */
+  updateFollow(hand, states, now) {
+    const pointing = Boolean(hand) && isPoint(hand, states);
+    this.pointStreak = pointing ? this.pointStreak + 1 : 0;
+    this.pointMiss = pointing ? 0 : this.pointMiss + 1;
+    if (!this.following && this.pointStreak >= POINT_START_FRAMES) this.following = true;
+    if (this.following && this.pointMiss >= POINT_STOP_FRAMES) {
+      this.following = false;
+      this.filter.reset();
+      this.emit("move", null);
+    }
+    if (this.following && hand) this.emit("move", this.filter.update(indexTip(hand), now));
   }
 
   async start() {
@@ -206,12 +242,13 @@ export class GestureTracker {
     this.lastHand = hand;
 
     const aspect = video.videoWidth / video.videoHeight || VIDEO.width / VIDEO.height;
+    const states = hand ? fingerStates(hand, aspect) : null;
     const pose = hand ? classifyPose(hand, aspect) : null;
     const quiet = now < this.quietUntil;
     const fired = this.gate.update(quiet ? null : pose, score, now);
     if (fired) this.emit("gesture", { name: fired });
-    this.emit("move", this.filter.update(hand ? palmCenter(hand) : null, now));
-    this.emit("pose", hand ? { pose, states: fingerStates(hand, aspect), score, quiet, detectMs: this.detectMs } : null);
+    this.updateFollow(hand, states, now);
+    this.emit("pose", hand ? { pose, states, score, quiet, following: this.following, detectMs: this.detectMs } : null);
     this.drawPreview(hand, aspect);
   }
 
