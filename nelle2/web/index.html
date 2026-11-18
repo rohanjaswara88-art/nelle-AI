@@ -3,19 +3,26 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#020302" />
+    <meta name="theme-color" content="#050505" />
     <title>Nelle</title>
     <meta name="description" content="Nelle, an emotionally aware AI that lives in a crystal ball of plasma." />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400&family=Space+Grotesk:wght@300;400;500&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&family=Instrument+Serif&family=JetBrains+Mono:wght@300;400&display=swap"
       rel="stylesheet"
     />
     <link rel="stylesheet" href="/static/styles.css" />
+    <link rel="stylesheet" href="/static/ui.css" />
   </head>
   <body data-state="idle">
     <canvas id="fog" aria-hidden="true"></canvas>
+    <div class="bg-fx" aria-hidden="true">
+      <div class="bg-grid"></div>
+      <div class="aurora one"></div>
+      <div class="aurora two"></div>
+      <i class="meteor"></i><i class="meteor"></i><i class="meteor"></i><i class="meteor"></i>
+    </div>
     <div id="ball" aria-hidden="true"></div>
     <canvas id="mind" aria-hidden="true"></canvas>
     <div class="grain" aria-hidden="true"></div>
@@ -52,6 +59,7 @@
     <main class="chat">
       <!-- the sphere (#ball) is drawn over this space, inside the chat box -->
       <div class="sphere-slot" aria-hidden="true"></div>
+      <h1 class="hero">Talk to Nelle.<small>An AI that feels the conversation, and shows it.</small></h1>
       <ol id="log" aria-live="polite" aria-label="Conversation"></ol>
       <div id="starters" class="starters" aria-label="Things to ask">
         <button type="button">Explain recursion simply</button>
