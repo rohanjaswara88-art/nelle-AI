@@ -1,17 +1,24 @@
 :root {
-  --ink: #ffeaf8;
-  --ink-dim: rgba(255, 222, 245, 0.62);
-  --ink-faint: rgba(255, 205, 240, 0.34);
-  --line: rgba(255, 170, 230, 0.18);
-  --line-strong: rgba(255, 185, 235, 0.4);
-  --glass: linear-gradient(155deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.02) 55%, rgba(242, 91, 208, 0.06));
-  --glass-solid: rgba(26, 6, 34, 0.45);
-  --accent: #ff9ce6;
-  --glow: rgba(242, 91, 208, 0.55);
-  --deep: #05010a;
+  /* lime on black */
+  --lime: 182, 255, 59; /* #B6FF3B, as rgb so it can take any alpha */
+  --acid: 166, 255, 0; /* #A6FF00, the ball's neutral colour */
+  --ink: #f2ffe2;
+  --ink-dim: rgba(228, 255, 200, 0.64);
+  --ink-faint: rgba(210, 255, 160, 0.36);
+  --line: rgba(var(--lime), 0.16);
+  --line-strong: rgba(var(--lime), 0.42);
+  --glass: linear-gradient(155deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.015) 55%, rgba(var(--acid), 0.05));
+  --glass-solid: rgba(6, 10, 5, 0.55);
+  --accent: #c6ff3d;
+  --glow: rgba(var(--acid), 0.5);
+  --deep: #020302;
   --sans: "Space Grotesk", system-ui, sans-serif;
   --mono: "JetBrains Mono", ui-monospace, monospace;
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  /* layout: one chat box fills the screen under the top bar, the sphere sits at its top */
+  --top: 76px;
+  --edge: 20px;
+  --sphere-h: clamp(210px, 46vh, 500px);
   color-scheme: dark;
 }
 
@@ -51,18 +58,24 @@ body {
   height: 100%;
 }
 
-/* the ball fills the space left of the conversation panel */
+/* the ball sits at the top of the chat box, over .sphere-slot */
 #ball {
   position: fixed;
-  top: 0;
-  left: 0;
-  bottom: 0;
-  right: calc(min(440px, 32vw) + 20px);
+  z-index: 2;
+  top: calc(var(--top) + 6px);
+  left: var(--edge);
+  right: var(--edge);
+  height: var(--sphere-h);
+  transition: height 0.9s var(--ease);
 }
+
+/* once the conversation starts the sphere steps back a little to give the messages room */
+body.started { --sphere-h: clamp(190px, 38vh, 420px); }
 
 /* the constellation: drawn over the ball, never catches the mouse */
 #mind {
   position: fixed;
+  z-index: 3;
   inset: 0;
   width: 100%;
   height: 100%;
@@ -71,6 +84,7 @@ body {
 
 .grain {
   position: fixed;
+  z-index: 4;
   inset: -50%;
   pointer-events: none;
   opacity: 0.09;
@@ -90,11 +104,12 @@ body {
 
 .vignette {
   position: fixed;
+  z-index: 4;
   inset: 0;
   pointer-events: none;
   background:
-    radial-gradient(ellipse 75% 70% at 38% 48%, transparent 45%, rgba(4, 0, 10, 0.6) 100%),
-    linear-gradient(180deg, rgba(4, 0, 10, 0.35), transparent 22%);
+    radial-gradient(ellipse 80% 75% at 50% 38%, transparent 45%, rgba(0, 0, 0, 0.6) 100%),
+    linear-gradient(180deg, rgba(0, 0, 0, 0.35), transparent 22%);
 }
 
 @keyframes fade-in {
@@ -140,6 +155,7 @@ svg {
 
 .topbar {
   position: fixed;
+  z-index: 5;
   top: 20px;
   left: 20px;
   right: 20px;
@@ -163,13 +179,6 @@ svg {
   font-size: 15px;
   letter-spacing: 0.5em;
   margin-right: -0.5em;
-}
-
-.sub {
-  font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: 0.12em;
-  color: var(--ink-faint);
 }
 
 .status {
@@ -208,14 +217,14 @@ svg {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: #f25bd0;
-  box-shadow: 0 0 10px #f25bd0;
+  background: #a6ff00;
+  box-shadow: 0 0 10px #a6ff00;
   animation: breathe 3.6s ease-in-out infinite;
 }
 
-body[data-state="listening"] .dot { background: #ff9ce6; animation-duration: 0.9s; }
-body[data-state="thinking"] .dot { background: #b58bff; box-shadow: 0 0 10px #b58bff; animation-duration: 1.4s; }
-body[data-state="speaking"] .dot { background: #ffd6f3; animation-duration: 0.6s; }
+body[data-state="listening"] .dot { background: #d9ff6a; box-shadow: 0 0 10px #d9ff6a; animation-duration: 0.9s; }
+body[data-state="thinking"] .dot { background: #4dffc4; box-shadow: 0 0 10px #4dffc4; animation-duration: 1.4s; }
+body[data-state="speaking"] .dot { background: #f0ffc8; animation-duration: 0.6s; }
 
 @keyframes breathe {
   50% { opacity: 0.35; transform: scale(0.8); }
@@ -257,62 +266,161 @@ body[data-state="speaking"] .dot { background: #ffd6f3; animation-duration: 0.6s
   opacity: 1;
 }
 
-/* ---------- conversation panel ---------- */
+.pill .slash {
+  transition: opacity 0.3s;
+}
 
-.panel {
-  position: fixed;
-  top: 84px;
-  right: 20px;
-  bottom: 20px;
-  width: min(420px, calc(32vw - 20px));
-  min-width: 330px;
-  display: flex;
-  flex-direction: column;
-  border-radius: 26px;
-  overflow: hidden;
+.pill[aria-pressed="true"] .slash {
   opacity: 0;
-  transform: translateX(16px);
-  animation: panel-in 1.2s 0.7s var(--ease) forwards;
 }
 
-@keyframes panel-in {
-  to { opacity: 1; transform: none; }
+.pill.is-loading {
+  animation: breathe 1.2s ease-in-out infinite;
 }
 
-.panel-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  padding: 20px 22px 14px;
-  border-bottom: 1px solid rgba(255, 170, 230, 0.1);
+/* the conversation's edge lights up while the hand is scrolling it */
+body.hand-scrolling .chat {
+  border-color: rgba(var(--lime), 0.36);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 0 0 1px rgba(var(--lime), 0.08),
+    0 24px 60px -20px rgba(0, 0, 0, 0.7),
+    0 0 40px -10px rgba(var(--acid), 0.25);
 }
 
-.panel-head h1 {
-  margin: 0;
-  font-size: 13px;
-  font-weight: 400;
-  letter-spacing: 0.08em;
+/* ---------- camera preview and gesture debug ---------- */
+
+/* top-right corner of the chat box, clear of the input bar */
+.cam {
+  position: fixed;
+  z-index: 5;
+  right: calc(var(--edge) + 14px);
+  top: calc(var(--top) + 14px);
+  width: 160px;
+  padding: 0;
+  border-radius: 16px;
+  overflow: hidden;
+  cursor: pointer;
+  animation: fade-in 0.6s var(--ease);
+}
+
+.cam[hidden] {
+  display: none;
+}
+
+.cam canvas {
+  display: block;
+  width: 160px;
+  height: 120px;
+  background: rgba(3, 6, 3, 0.6);
+}
+
+.cam-label {
+  position: absolute;
+  left: 9px;
+  bottom: 7px;
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
   color: var(--ink-dim);
 }
 
-.panel-head .mono {
-  font-size: 10px;
-  letter-spacing: 0.14em;
+.cam.video-off .cam-label::after {
+  content: " · video hidden";
+}
+
+.gesture-debug {
+  position: fixed;
+  left: calc(var(--edge) + 14px);
+  top: calc(var(--top) + 44px);
+  width: 210px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink);
+  z-index: 5;
+}
+
+.gesture-debug .title {
+  margin: 0 0 8px;
+  font-size: 9.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
   color: var(--ink-faint);
 }
 
+.gesture-debug pre {
+  margin: 0;
+  font: inherit;
+  line-height: 1.5;
+}
+
+.gesture-debug ol {
+  margin: 8px 0;
+  padding: 0;
+  list-style: none;
+  color: var(--accent);
+}
+
+.gesture-debug button {
+  width: 100%;
+  padding: 6px;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  background: transparent;
+  font-size: 11px;
+}
+
+/* ---------- the chat box: fills the screen, the sphere lives at its top ---------- */
+
+.chat {
+  position: fixed;
+  z-index: 1;
+  inset: var(--top) var(--edge) var(--edge);
+  display: flex;
+  flex-direction: column;
+  border-radius: 28px;
+  border: 1px solid var(--line);
+  /* no backdrop blur: the sphere and fog must stay crisp behind and inside the box */
+  background:
+    radial-gradient(ellipse 60% 45% at 50% 28%, rgba(var(--acid), 0.05), transparent 70%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.025), rgba(3, 6, 3, 0.35) 70%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 30px 80px -30px rgba(0, 0, 0, 0.8);
+  overflow: hidden;
+  opacity: 0;
+  transform: translateY(12px);
+  animation: chat-in 1.2s 0.5s var(--ease) forwards;
+  transition: border-color 0.3s, box-shadow 0.3s;
+}
+
+@keyframes chat-in {
+  to { opacity: 1; transform: none; }
+}
+
+.sphere-slot {
+  flex: none;
+  height: calc(var(--sphere-h) + 6px);
+  transition: height 0.9s var(--ease);
+}
+
+/* messages: a centred column under the sphere */
 #log {
   flex: 1;
+  width: min(780px, 100%);
+  align-self: center;
   margin: 0;
-  padding: 18px 22px;
+  padding: 18px 24px 12px;
   list-style: none;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 18px;
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 170, 230, 0.2) transparent;
-  mask-image: linear-gradient(transparent, #000 22px, #000 calc(100% - 10px), transparent);
+  scrollbar-color: rgba(var(--lime), 0.2) transparent;
+  mask-image: linear-gradient(transparent, #000 28px, #000 calc(100% - 10px), transparent);
 }
 
 .msg {
@@ -324,32 +432,6 @@ body[data-state="speaking"] .dot { background: #ffd6f3; animation-duration: 0.6s
 
 @keyframes msg-in {
   from { opacity: 0; transform: translateY(8px); filter: blur(4px); }
-}
-
-.msg .meta {
-  margin: 0;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--ink-faint);
-}
-
-.msg .tag {
-  padding: 2px 7px;
-  border-radius: 999px;
-  border: 1px solid var(--line);
-  font-size: 9px;
-  letter-spacing: 0.12em;
-  color: var(--ink-dim);
-}
-
-.msg .tag + .tag {
-  color: var(--accent);
-  border-color: rgba(255, 156, 230, 0.3);
 }
 
 .msg .body {
@@ -369,14 +451,14 @@ body[data-state="speaking"] .dot { background: #ffd6f3; animation-duration: 0.6s
   max-width: 88%;
   padding: 9px 14px;
   border-radius: 16px 16px 4px 16px;
-  background: rgba(255, 150, 225, 0.1);
-  border: 1px solid rgba(255, 170, 230, 0.14);
+  background: rgba(var(--lime), 0.1);
+  border: 1px solid rgba(var(--lime), 0.14);
   font-weight: 400;
 }
 
 .msg.nelle .body {
-  color: #fff0fa;
-  text-shadow: 0 0 18px rgba(242, 91, 208, 0.28);
+  color: #f6ffea;
+  text-shadow: 0 0 18px rgba(var(--acid), 0.28);
 }
 
 .w {
@@ -409,14 +491,15 @@ body[data-state="speaking"] .dot { background: #ffd6f3; animation-duration: 0.6s
 }
 
 .chip:hover {
-  background: rgba(255, 150, 225, 0.12);
+  background: rgba(var(--lime), 0.12);
 }
 
 .starters {
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
   gap: 8px;
-  padding: 0 16px 12px;
+  padding: 0 16px 14px;
   transition: opacity 0.4s var(--ease);
 }
 
@@ -424,7 +507,7 @@ body[data-state="speaking"] .dot { background: #ffd6f3; animation-duration: 0.6s
   padding: 7px 12px;
   border-radius: 999px;
   border: 1px solid var(--line);
-  background: rgba(255, 150, 225, 0.05);
+  background: rgba(var(--lime), 0.05);
   font-size: 12.5px;
   color: var(--ink-dim);
   transition: color 0.3s, border-color 0.3s, background 0.3s;
@@ -433,32 +516,36 @@ body[data-state="speaking"] .dot { background: #ffd6f3; animation-duration: 0.6s
 .starters button:hover {
   color: var(--ink);
   border-color: var(--line-strong);
-  background: rgba(255, 150, 225, 0.12);
+  background: rgba(var(--lime), 0.12);
 }
 
 body.started .starters {
   display: none;
 }
 
+/* the input: a full-width bar along the bottom of the chat box */
 #composer {
   display: flex;
   align-items: flex-end;
   gap: 8px;
-  margin: 0 14px;
-  padding: 8px 8px 8px 16px;
-  border-radius: 20px;
-  background: rgba(10, 2, 16, 0.42);
-  border: 1px solid rgba(255, 170, 230, 0.16);
-  transition: border-color 0.3s;
+  margin: 0 16px 16px;
+  padding: 10px 10px 10px 20px;
+  border-radius: 22px;
+  background: linear-gradient(180deg, rgba(var(--lime), 0.06), rgba(var(--lime), 0.02)), rgba(3, 6, 3, 0.7);
+  border: 1px solid rgba(var(--lime), 0.2);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  transition: border-color 0.3s, box-shadow 0.3s;
 }
 
 #composer:focus-within {
   border-color: var(--line-strong);
+  box-shadow: 0 0 0 4px rgba(var(--lime), 0.06), 0 0 30px -12px rgba(var(--acid), 0.4);
 }
 
 #input {
   flex: 1;
-  min-height: 38px;
+  min-height: 40px;
   max-height: 140px;
   padding: 9px 0;
   resize: none;
@@ -489,12 +576,12 @@ body.started .starters {
 
 .icon:hover {
   color: var(--ink);
-  background: rgba(255, 150, 225, 0.1);
+  background: rgba(var(--lime), 0.1);
 }
 
 .send {
-  background: rgba(242, 91, 208, 0.22);
-  border-color: rgba(255, 170, 230, 0.3);
+  background: rgba(var(--acid), 0.22);
+  border-color: rgba(var(--lime), 0.3);
   color: var(--ink);
 }
 
@@ -511,7 +598,7 @@ body.started .starters {
 
 #mic.is-live {
   color: #fff;
-  background: rgba(242, 91, 208, 0.3);
+  background: rgba(var(--acid), 0.3);
 }
 
 #mic.is-live::after {
@@ -519,7 +606,7 @@ body.started .starters {
   position: absolute;
   inset: -4px;
   border-radius: 50%;
-  border: 1px solid rgba(255, 170, 230, 0.6);
+  border: 1px solid rgba(var(--lime), 0.6);
   animation: ring 1.4s var(--ease) infinite;
 }
 
@@ -528,18 +615,11 @@ body.started .starters {
   to { transform: scale(1.5); opacity: 0; }
 }
 
-.hint {
-  margin: 10px 0 14px;
-  text-align: center;
-  font-size: 9.5px;
-  letter-spacing: 0.16em;
-  color: var(--ink-faint);
-}
-
 #toast {
   position: fixed;
+  z-index: 6;
   left: 50%;
-  bottom: 28px;
+  bottom: 120px;
   max-width: min(440px, calc(100% - 32px));
   padding: 11px 18px;
   border-radius: 14px;
@@ -556,28 +636,32 @@ body.started .starters {
   transform: translate(-50%, 0);
 }
 
-/* ---------- small screens: the conversation becomes a bottom sheet ---------- */
+/* ---------- small screens: the same chat box, tighter ---------- */
 
 @media (max-width: 860px) {
-  .topbar { top: 12px; left: 12px; right: 12px; gap: 8px; }
-  .brand .sub, .status .sep, .status #provider, .status .mood, .pill span { display: none; }
-  .pill { padding: 9px 11px; }
-  .panel {
-    top: auto;
-    left: 12px;
-    right: 12px;
-    bottom: 12px;
-    width: auto;
-    min-width: 0;
-    height: 46dvh;
-    border-radius: 22px;
-    transform: translateY(16px);
+  :root {
+    --top: 62px;
+    --edge: 10px;
+    --sphere-h: clamp(170px, 34dvh, 320px);
   }
-  #ball { top: 56px; right: 0; bottom: calc(46dvh + 12px); }
-  .hint { display: none; }
-  #composer { margin-bottom: 12px; }
-  .starters { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  body.started { --sphere-h: clamp(150px, 28dvh, 260px); }
+  .topbar { top: 12px; left: 12px; right: 12px; gap: 8px; }
+  .status .sep, .status #provider, .status .mood, .pill span { display: none; }
+  .pill { padding: 9px 11px; }
+  .chat { border-radius: 22px; }
+  #log { padding: 12px 14px 10px; }
+  #composer { margin: 0 10px 10px; padding-left: 16px; }
+  .cam { right: calc(var(--edge) + 10px); top: calc(var(--top) + 10px); width: 96px; }
+  .cam canvas { width: 96px; height: 72px; }
+  .gesture-debug { left: calc(var(--edge) + 10px); top: calc(var(--top) + 36px); width: 172px; font-size: 10px; }
+  .starters { flex-wrap: nowrap; justify-content: flex-start; overflow-x: auto; scrollbar-width: none; padding: 0 10px 10px; }
   .starters button { flex: none; }
+  #toast { bottom: 90px; }
+}
+
+/* short screens (landscape laptops with big zoom): give the messages more room */
+@media (max-height: 640px) {
+  :root, body.started { --sphere-h: clamp(150px, 34vh, 240px); }
 }
 
 @media (prefers-reduced-motion: reduce) {

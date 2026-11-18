@@ -7,33 +7,40 @@ const FOG_SCALE = 0.4; // the fog is soft, so its canvas renders at low resoluti
 
 // Ball look per emotion. Numbers are the React Bits settings; intensity blends from neutral.
 // [color, crackle, flares, sparks, glow, dustSpeed, sway, fill, haze]
+// Lime on black: warm feelings lean yellow-lime, calm or low ones lean mint and teal.
 const MOODS = {
-  neutral: ["#F25BD0", 0.6, 0.55, 0.45, 0.9, 0.9, 0.5, 0.5, 0.7],
-  happy: ["#FF6FD8", 0.75, 0.7, 0.65, 1.0, 1.15, 0.55, 0.55, 0.7],
-  excited: ["#FF7AB8", 1.0, 0.95, 0.95, 1.15, 1.6, 0.7, 0.62, 0.75],
-  sad: ["#8A6BFF", 0.3, 0.3, 0.15, 0.7, 0.55, 0.3, 0.35, 0.9],
-  frustrated: ["#FF4F7A", 1.1, 0.8, 0.9, 1.0, 1.3, 0.55, 0.5, 0.8],
-  confused: ["#C77DFF", 0.7, 0.5, 0.5, 0.9, 0.9, 0.8, 0.5, 0.75],
-  curious: ["#E36BFF", 0.7, 0.6, 0.6, 0.95, 1.0, 0.65, 0.52, 0.7],
-  surprised: ["#FF9BE6", 0.95, 1.0, 0.9, 1.2, 1.4, 0.6, 0.58, 0.7],
-  disappointed: ["#7C5CD6", 0.3, 0.25, 0.15, 0.65, 0.5, 0.3, 0.3, 0.9],
-  nervous: ["#F06BFF", 1.0, 0.5, 0.8, 0.95, 1.5, 0.9, 0.48, 0.8],
-  casual: ["#F25BD0", 0.55, 0.5, 0.45, 0.9, 0.9, 0.55, 0.5, 0.7],
-  playful: ["#FF66C4", 0.8, 0.75, 0.8, 1.05, 1.3, 0.8, 0.55, 0.7],
-  thinking: ["#A879FF", 0.5, 0.4, 0.35, 0.85, 0.7, 0.35, 0.5, 0.8],
-  concerned: ["#B565E8", 0.45, 0.4, 0.3, 0.8, 0.7, 0.4, 0.45, 0.85],
+  neutral: ["#A6FF00", 0.6, 0.55, 0.45, 0.9, 0.9, 0.5, 0.5, 0.7],
+  happy: ["#C8FF2E", 0.75, 0.7, 0.65, 1.0, 1.15, 0.55, 0.55, 0.7],
+  excited: ["#E0FF1A", 1.0, 0.95, 0.95, 1.15, 1.6, 0.7, 0.62, 0.75],
+  sad: ["#2FB88A", 0.3, 0.3, 0.15, 0.7, 0.55, 0.3, 0.35, 0.9],
+  frustrated: ["#FFD21F", 1.1, 0.8, 0.9, 1.0, 1.3, 0.55, 0.5, 0.8],
+  confused: ["#6CFFB0", 0.7, 0.5, 0.5, 0.9, 0.9, 0.8, 0.5, 0.75],
+  curious: ["#8DFF3A", 0.7, 0.6, 0.6, 0.95, 1.0, 0.65, 0.52, 0.7],
+  surprised: ["#EEFF6A", 0.95, 1.0, 0.9, 1.2, 1.4, 0.6, 0.58, 0.7],
+  disappointed: ["#2A9C76", 0.3, 0.25, 0.15, 0.65, 0.5, 0.3, 0.3, 0.9],
+  nervous: ["#B8FF4A", 1.0, 0.5, 0.8, 0.95, 1.5, 0.9, 0.48, 0.8],
+  casual: ["#A6FF00", 0.55, 0.5, 0.45, 0.9, 0.9, 0.55, 0.5, 0.7],
+  playful: ["#D2FF3A", 0.8, 0.75, 0.8, 1.05, 1.3, 0.8, 0.55, 0.7],
+  thinking: ["#4DFFC4", 0.5, 0.4, 0.35, 0.85, 0.7, 0.35, 0.5, 0.8],
+  concerned: ["#45D69E", 0.45, 0.4, 0.3, 0.8, 0.7, 0.4, 0.45, 0.85],
 };
 const KEYS = ["crackle", "flares", "sparks", "glow", "dustSpeed", "sway", "fill", "haze"];
 const NEUTRAL = MOODS.neutral;
 const TOP = Math.PI / 2;
 const SEARCH_AFTER = 1.4; // seconds of thinking before the ball starts "searching"
 const PING_EVERY = 1.1;
+const GESTURE_HOLD = 2.5; // seconds a gesture shape stays up
+const HAND_REACH = 1.0; // the camera frame's edges map to the ball's rim
+const KICK_SPEED = 0.35; // finger speed (ball radii per second) before a move also jolts the dust
+const KICK_EVERY = 0.12;
+const ARC_SPEED = 1.5; // faster than this, the rim sparks where the finger is heading
+const ARC_EVERY = 0.16;
 
 const rand = (a, b) => a + Math.random() * (b - a);
 const ease = (current, target, rate, dt) => current + (target - current) * (1 - Math.exp(-rate * dt));
 const mix = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);
 const rgba = (c, a) => `rgba(${(c[0] * 255) | 0},${(c[1] * 255) | 0},${(c[2] * 255) | 0},${a})`;
-const COLORS = Object.fromEntries(Object.entries(MOODS).map(([name, [hex]]) => [name, parseColor(hex, [0.95, 0.36, 0.82])]));
+const COLORS = Object.fromEntries(Object.entries(MOODS).map(([name, [hex]]) => [name, parseColor(hex, [0.65, 1, 0])]));
 
 export class Stage {
   constructor(fogCanvas, ballContainer, mindCanvas) {
@@ -47,6 +54,10 @@ export class Stage {
     this.state = "idle";
     this.emotion = "neutral";
     this.intensity = 0.4;
+    this.override = null; // { emotion, intensity, until }: a brief mood from a gesture
+    this.timeline = []; // [{ at, run }]: small timed steps for gesture animations
+    this.lastKick = 0;
+    this.lastArc = 0;
     this.level = 0;
     this.voice = 0;
     this.time = 0;
@@ -83,6 +94,8 @@ export class Stage {
     this.loop = this.loop.bind(this);
     this.resize = this.resize.bind(this);
     addEventListener("resize", this.resize);
+    // the sphere's slot shrinks a little once the chat starts, so follow the box itself too
+    new ResizeObserver(this.resize).observe(this.ballContainer);
     document.addEventListener("visibilitychange", () => (document.hidden ? this.stop() : this.start()));
     this.resize();
   }
@@ -105,10 +118,10 @@ export class Stage {
   resize() {
     this.fog.width = Math.round(innerWidth * FOG_SCALE);
     this.fog.height = Math.round(innerHeight * FOG_SCALE);
-    // as big as fits, keeping a margin so the glow and the found ripple stay on screen
+    // as big as fits its slot at the top of the chat box, keeping a margin so the glow isn't clipped
     const { width, height } = this.ballContainer.getBoundingClientRect();
-    const room = Math.min(width * 0.8, height * 0.78);
-    this.baseSize = Math.max(0.42, Math.min(0.72, room / Math.max(1, Math.min(width, height))));
+    const room = Math.min(width * 0.8, height * 0.8);
+    this.baseSize = Math.max(0.42, Math.min(0.8, room / Math.max(1, Math.min(width, height))));
   }
 
   setMood(emotion, intensity) {
@@ -172,6 +185,105 @@ export class Stage {
     this.ball.arc(-TOP + rand(-0.5, 0.5), 1.1);
   }
 
+  // ---------- hand gestures ----------
+
+  /** True while a gesture animation is playing; new gestures are ignored until it ends. */
+  get gestureBusy() {
+    return this.mind.busy;
+  }
+
+  /** Run `fn` after `delay` seconds of animation time. */
+  later(delay, run) {
+    this.timeline.push({ at: this.time + delay, run });
+  }
+
+  runTimeline() {
+    if (!this.timeline.length) return;
+    const due = this.timeline.filter((step) => step.at <= this.time);
+    this.timeline = this.timeline.filter((step) => step.at > this.time);
+    for (const step of due) step.run();
+  }
+
+  /** Two fingers: the points bloom into a flower, petal after petal, while arcs circle the rim. */
+  bloom() {
+    if (!this.mind.play("flower", { from: "centre", drawTime: 1.2, hold: GESTURE_HOLD, glow: 1.25 })) return false;
+    if (!this.ball) return true;
+    this.ball.surge(0.7);
+    const arcs = this.reducedMotion ? 2 : 7;
+    for (let i = 0; i < arcs; i++) {
+      this.later(i * (1.2 / arcs), () => this.ball.arc(TOP - (i / arcs) * Math.PI * 2, 0.7));
+    }
+    return true;
+  }
+
+  /** Five fingers: a smiling face, a brief happy mood and one playful kick to the dust. */
+  smile() {
+    if (!this.mind.play("smile", { drawTime: 0.9, hold: GESTURE_HOLD, glow: 1.2 })) return false;
+    const hold = this.reducedMotion ? 2 : 0.9 + GESTURE_HOLD;
+    this.override = { emotion: "happy", intensity: 0.85, until: this.time + hold };
+    if (!this.ball) return true;
+    this.ball.kick(rand(-0.3, 0.3), -0.4, this.reducedMotion ? 0.35 : 0.85);
+    this.ball.surge(0.6);
+    this.ball.arc(TOP + rand(-0.4, 0.4), 1);
+    return true;
+  }
+
+  /** Thumbs up: "HI BRO" spelled out with particles streaming up from the dust, then scattering back. */
+  hiBro() {
+    const options = { from: "dust", drawTime: 1.3, hold: GESTURE_HOLD, glow: 1.45, scatter: true };
+    if (!this.mind.play("text:HI BRO", options)) return false;
+    if (!this.ball) return true;
+    this.ball.kick(0, -0.6, this.reducedMotion ? 0.3 : 0.7); // the dust stirs as the letters rise out of it
+    this.ball.surge(0.8);
+    this.later(1.3, () => {
+      this.ball.arc(TOP + 0.5, 1.1);
+      this.ball.arc(TOP - 0.5, 1.1);
+    });
+    if (!this.reducedMotion) this.later(1.3 + GESTURE_HOLD, () => this.ball.kick(0, 0.2, 0.8)); // scatter
+    return true;
+  }
+
+  /**
+   * Pointing finger, every detection frame: `move` is { x, y, vx, vy, wave } in 0..1 screen space
+   * (already mirrored) or null when not pointing. The dust is dragged hard the way the finger moves
+   * and leans toward it, quick moves jolt it and spark the rim, and a wave sends ripples across.
+   */
+  handMove(move) {
+    this.mind.setHand(move ? [(move.x - 0.5) * 2, (0.5 - move.y) * 2] : null);
+    if (!this.ball || !move) return;
+    const x = (move.x - 0.5) * 2 * HAND_REACH;
+    const y = (0.5 - move.y) * 2 * HAND_REACH;
+    const vx = move.vx * 2 * HAND_REACH;
+    const vy = -move.vy * 2 * HAND_REACH;
+    const speed = Math.hypot(vx, vy);
+    const calm = this.reducedMotion ? 0.4 : 1;
+    // only movement stirs (a still finger just leans); fast moves drag the dust well past the finger
+    this.ball.push(x, y, vx * 1.5 * calm, vy * 1.5 * calm, Math.min(2.4, speed * 1.3) * calm);
+    this.ball.lean(x * 1.4, y * 1.1, calm);
+    if (speed > KICK_SPEED && this.time - this.lastKick > KICK_EVERY) {
+      this.lastKick = this.time;
+      const lead = 0.3; // jolt a little ahead of the finger, so the dust is thrown the way it moves
+      this.ball.kick(x + (vx / speed) * lead, y + (vy / speed) * lead, Math.min(1.5, 0.3 + speed * 0.45) * calm);
+    }
+    if (!this.reducedMotion && speed > ARC_SPEED && this.time - this.lastArc > ARC_EVERY) {
+      this.lastArc = this.time;
+      this.ball.arc(Math.atan2(vy, vx), 0.8 + Math.min(0.8, speed * 0.2));
+      this.ball.surge(Math.min(0.8, speed * 0.25));
+    }
+    if (move.wave) this.wave(Math.sign(vx) || 1);
+  }
+
+  /** A wave of the hand: ripples roll across the dust and out through the fog. */
+  wave(direction = 1) {
+    if (!this.ball) return;
+    this.ripples.push(this.time);
+    this.ball.surge(0.5);
+    const steps = this.reducedMotion ? 1 : 3;
+    for (let i = 0; i < steps; i++) {
+      this.later(i * 0.12, () => this.ball.kick(direction * (-0.6 + i * 0.6), 0, 0.55));
+    }
+  }
+
   /** A sharp flicker, used when Nelle is interrupted or her memory is cleared. */
   jolt(strength = 1) {
     if (!this.ball) return;
@@ -210,12 +322,15 @@ export class Stage {
 
   /** Blend the ball's settings toward the current mood and state. */
   animate(dt) {
-    const k = 0.35 + 0.65 * this.intensity;
-    const target = mix(COLORS.neutral, COLORS[this.emotion], k);
+    if (this.override && this.time > this.override.until) this.override = null;
+    const shown = this.override ?? this; // a gesture's brief mood wins until it runs out
+    const k = 0.35 + 0.65 * shown.intensity;
+    const target = mix(COLORS.neutral, COLORS[shown.emotion], k);
     this.color = mix(this.color, target, 1 - Math.exp(-1.5 * dt));
 
     const state = this.state;
-    const mood = MOODS[this.emotion];
+    const mood = MOODS[shown.emotion];
+    this.runTimeline();
     const goal = Object.fromEntries(KEYS.map((key, i) => [key, NEUTRAL[i + 1] + (mood[i + 1] - NEUTRAL[i + 1]) * k]));
     if (state === "thinking") {
       goal.crackle += 0.15;
@@ -274,26 +389,27 @@ export class Stage {
     const W = fog.width;
     const H = fog.height;
     const S = FOG_SCALE;
-    const deep = [0.02, 0.004, 0.035];
-    const tint = mix(this.color, [0, 0, 0], 0.82);
+    const deep = [0.004, 0.008, 0.004]; // near-black with a breath of green
+    const tint = mix(this.color, [0, 0, 0], 0.95); // lime is bright: only a hint of it in the black
     const [cx, cy] = anchors.center;
 
     const bg = ctx.createRadialGradient(cx * S, cy * S, 0, cx * S, cy * S, Math.max(W, H) * 0.8);
-    bg.addColorStop(0, rgba(mix(tint, this.color, 0.1 + this.voice * 0.08), 1));
-    bg.addColorStop(0.5, rgba(mix(tint, deep, 0.55), 1));
+    bg.addColorStop(0, rgba(mix(tint, this.color, 0.04 + this.voice * 0.06), 1));
+    bg.addColorStop(0.45, rgba(mix(tint, deep, 0.7), 1));
     bg.addColorStop(1, rgba(deep, 1));
     ctx.globalCompositeOperation = "source-over";
     ctx.fillStyle = bg;
     ctx.fillRect(0, 0, W, H);
 
-    const fogColor = mix(this.color, [1, 1, 1], 0.15);
+    const fogColor = mix(this.color, [1, 1, 1], 0.25);
+    const FOG_STRENGTH = 0.45; // a pale, thin mist: thick lime fog would turn the black olive
     const t = this.reducedMotion ? 0 : this.time;
     for (const blob of this.blobs) {
       const bx = (((blob.x + t * blob.speed + 2) % 1.4) - 0.2) * W;
       const by = (blob.y + Math.sin(t * 0.05 + blob.seed) * 0.05) * H;
       const r = blob.r * Math.max(W, H) * (1 + Math.sin(t * 0.07 + blob.seed) * 0.12);
       const g = ctx.createRadialGradient(bx, by, 0, bx, by, r);
-      g.addColorStop(0, rgba(fogColor, blob.a * (blob.front ? 0.6 : 1)));
+      g.addColorStop(0, rgba(fogColor, blob.a * FOG_STRENGTH * (blob.front ? 0.6 : 1)));
       g.addColorStop(1, rgba(fogColor, 0));
       ctx.fillStyle = g;
       ctx.fillRect(bx - r, by - r, r * 2, r * 2);

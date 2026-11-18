@@ -1,4 +1,7 @@
 // Emotion controller: turns each reply into the ball's mood, motion and topic shape, the voice and the chat.
+import { attachGestureDebug } from "./gesture-debug.js";
+import { CameraError, GestureTracker } from "./gestures.js";
+import { HandScroller } from "./handscroll.js";
 import { Stage } from "./stage.js";
 import { SpeechInput, VoicePlayer } from "./voice.js";
 
@@ -10,12 +13,12 @@ const els = {
   mic: $("#mic"),
   send: $("#send"),
   speak: $("#speak-toggle"),
+  camera: $("#camera-toggle"),
   reset: $("#reset"),
   provider: $("#provider"),
   status: $("#status-state"),
   mood: $("#mood"),
   starters: $("#starters"),
-  memory: $("#memory"),
   toast: $("#toast"),
 };
 
@@ -26,22 +29,40 @@ const STATE_TEXT = {
   speaking: "Speaking",
   answering: "Answering",
 };
-const MEMORY_SIZE = 12;
 const TEXT_WORDS_PER_SECOND = 4.4;
 const SETTLE_MS = 1800;
+const TYPING_QUIET_MS = 900; // hands on the keyboard shouldn't fire gestures
 const MIN_THINKING_MS = 1100; // long enough for the thinking animation to read, even offline
 
 const stage = new Stage($("#fog"), $("#ball"), $("#mind"));
 const player = new VoicePlayer();
 const speech = new SpeechInput();
+const tracker = new GestureTracker($("#cam"));
+const scroller = new HandScroller(els.log);
+
+// Gesture name (from the registry in gestures.js) -> animation. Add a line here for a new gesture.
+const GESTURE_ACTIONS = {
+  two: () => stage.bloom(),
+  five: () => stage.smile(),
+  thumbsUp: () => stage.hiBro(),
+};
+const CAMERA_ERRORS = {
+  denied: "Camera access was blocked, so gestures are off. You can allow it in the address bar.",
+  "no-camera": "I couldn't find a camera, so gestures are off.",
+  unsupported: "This browser can't share a camera here, so gestures are off.",
+  model: "The hand-tracking model didn't load. Check your connection and try again.",
+};
 
 let state = "idle";
 let job = 0; // bumps on every new request or interrupt, so stale async work quietly stops
 let abort = null;
 let reveal = null;
 let speakReplies = readSetting("nelle.speak", false);
+let cameraOn = false;
 
 stage.onFrame((dt) => {
+  tracker.tick(performance.now());
+  scroller.tick(dt);
   if (state === "speaking") stage.setLevel(player.level());
   if (state === "thinking") {
     const label = stage.searching ? "Searching" : "Thinking";
@@ -90,11 +111,6 @@ function setMood({ emotion, intensity, voiceStyle }) {
   els.mood.title = `Intensity ${Number(intensity).toFixed(2)} · voice ${voiceStyle}`;
 }
 
-function setMemory(count) {
-  const text = `${String(count).padStart(2, "0")}/${MEMORY_SIZE}`;
-  els.memory.textContent = `MEM ${text}`;
-}
-
 function toast(message) {
   els.toast.textContent = message;
   els.toast.classList.add("show");
@@ -102,25 +118,13 @@ function toast(message) {
   toast.timer = setTimeout(() => els.toast.classList.remove("show"), 4200);
 }
 
-function addMessage(role, text, meta = {}) {
+function addMessage(role, text) {
   const item = document.createElement("li");
   item.className = `msg ${role}`;
-  const label = document.createElement("p");
-  label.className = "meta";
-  label.textContent = role === "user" ? "You" : "Nelle";
-  if (role === "nelle" && meta.emotion) {
-    for (const text of [meta.emotion, meta.topic && meta.topic !== "general" ? meta.topic : null]) {
-      if (!text) continue;
-      const tag = document.createElement("span");
-      tag.className = "tag";
-      tag.textContent = text;
-      label.append(tag);
-    }
-  }
   const body = document.createElement("p");
   body.className = "body";
   body.textContent = text;
-  item.append(label, body);
+  item.append(body);
   els.log.append(item);
   els.log.scrollTo({ top: els.log.scrollHeight, behavior: "smooth" });
   return { item, body };
@@ -245,9 +249,8 @@ async function send(text, viaVoice = false) {
   stage.found(data.topic);
 
   setMood(data);
-  if (data.memory !== undefined) setMemory(data.memory);
   if (data.source === "claude" || data.source === "offline") els.provider.textContent = data.source.toUpperCase();
-  const message = addMessage("nelle", "", data); // filled in word by word below
+  const message = addMessage("nelle", ""); // filled in word by word below
   if (data.url) {
     addLink(message.item, data.url);
     window.open(data.url, "_blank", "noopener");
@@ -314,6 +317,7 @@ els.input.addEventListener("keydown", (event) => {
   }
 });
 els.input.addEventListener("input", autosize);
+addEventListener("keydown", () => tracker.quiet(TYPING_QUIET_MS));
 els.mic.addEventListener("click", listen);
 els.starters.addEventListener("click", (event) => {
   const button = event.target.closest("button");
@@ -334,6 +338,47 @@ els.speak.addEventListener("click", () => {
   renderSpeakToggle();
 });
 
+// ---------- camera and hand gestures ----------
+
+tracker.on("gesture", ({ name }) => {
+  if (stage.gestureBusy) return; // one gesture animation at a time
+  GESTURE_ACTIONS[name]?.();
+});
+tracker.on("move", (move) => stage.handMove(move));
+tracker.on("scroll", (scroll) => {
+  scroller.update(scroll);
+});
+
+function renderCameraToggle(loading = false) {
+  els.camera.setAttribute("aria-pressed", String(cameraOn));
+  els.camera.classList.toggle("is-loading", loading);
+  els.camera.querySelector("span").textContent = loading ? "Starting…" : cameraOn ? "Camera on" : "Camera off";
+}
+
+async function setCamera(on) {
+  if (on === cameraOn) return;
+  writeSetting("nelle.camera", on);
+  if (!on) {
+    tracker.stop();
+    cameraOn = false;
+    return renderCameraToggle();
+  }
+  renderCameraToggle(true);
+  try {
+    await tracker.start();
+    cameraOn = true;
+  } catch (error) {
+    cameraOn = false;
+    writeSetting("nelle.camera", false);
+    toast(CAMERA_ERRORS[error instanceof CameraError ? error.code : "model"]);
+    console.warn("Camera unavailable:", error);
+  }
+  renderCameraToggle();
+}
+
+els.camera.addEventListener("click", () => setCamera(!cameraOn));
+if (new URLSearchParams(location.search).get("debug") === "gestures") attachGestureDebug(tracker);
+
 els.reset.addEventListener("click", async () => {
   interrupt();
   try {
@@ -344,35 +389,34 @@ els.reset.addEventListener("click", async () => {
   els.log.replaceChildren();
   document.body.classList.remove("started");
   setMood({ emotion: "neutral", intensity: 0.4, voiceStyle: "calm" });
-  setMemory(0);
   stage.setTopic("general");
   stage.jolt(1);
 });
 
 async function boot() {
   renderSpeakToggle();
+  renderCameraToggle();
+  if (readSetting("nelle.camera", false)) setCamera(true);
   setMood({ emotion: "neutral", intensity: 0.4, voiceStyle: "calm" });
   setState("idle");
-  setMemory(0);
   stage.start();
   try {
     // A fresh page starts a fresh conversation: Nelle shouldn't remember chat you can no longer see.
     await postJson("/api/reset", {});
     const status = await (await fetch("/api/status")).json();
     els.provider.textContent = status.provider.toUpperCase();
-    setMemory(status.memory);
   } catch {
     els.provider.textContent = "NO SERVER";
   }
   setTimeout(async () => {
     if (els.log.children.length) return;
     const id = job;
-    const greeting = addMessage("nelle", "", { emotion: "neutral", intensity: 0.4 });
+    const greeting = addMessage("nelle", "");
     setState("answering");
     await startReveal(greeting.body, "I'm here. Type to me, or press the mic and just talk.", null);
     setTimeout(() => id === job && state === "answering" && setState("idle"), SETTLE_MS);
   }, 2200);
 }
 
-window.nelle = { stage, setState, setMood, interrupt, send }; // handy for poking at states from devtools
+window.nelle = { stage, setState, setMood, interrupt, send, tracker }; // handy for poking at states from devtools
 boot();

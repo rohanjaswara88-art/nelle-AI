@@ -3,7 +3,8 @@
 // Adapted to plain JavaScript from the CrystalizedBall component by React Bits
 // (https://reactbits.dev/animations/crystalized-ball). The React wrapper was removed and the
 // animation loop is driven by Nelle's stage; the shaders are unchanged. Added: a `spin` setting
-// (radians) that turns the dust cloud, used for Nelle's thinking vortex.
+// (radians) that turns the dust cloud, used for Nelle's thinking vortex, and push() / lean() so a
+// tracked hand can stir the dust and tilt it like the mouse does.
 //
 // Copyright (c) 2026 David Haz. MIT + Commons Clause License Condition v1.0.
 // Permission is granted to use, copy, modify, merge, publish, and distribute the Software
@@ -12,6 +13,8 @@
 // The component itself may not be sold, sublicensed, or redistributed on its own.
 
 import { Geometry, Mesh, Program, RenderTarget, Renderer, Texture, Triangle } from "https://cdn.jsdelivr.net/npm/ogl@1.0.11/+esm";
+
+const HAND_BRUSH_SIZE = 0.17; // squared reach of a hand's stir, in ball radii (the mouse uses 0.07)
 
 const BALL_PRESETS = {
   plasma: {
@@ -710,6 +713,7 @@ uniform float uDt;
 uniform float uReset;
 uniform vec4 uBrush;
 uniform float uBrushPower;
+uniform float uBrushSize;
 uniform vec4 uKick;
 
 layout(location = 0) out vec4 outOffset;
@@ -746,7 +750,7 @@ void main() {
   vec3 acc = -k * o - 1.5 * sqrt(k) * v;
 
   vec2 gap = p.xy - uBrush.xy;
-  float touch = exp(-dot(gap, gap) / 0.07) * uBrushPower;
+  float touch = exp(-dot(gap, gap) / uBrushSize) * uBrushPower;
   acc += (vec3(uBrush.zw, 0.0) - v) * touch * 14.0;
   float pace = length(v);
   if (pace > 1e-4) {
@@ -935,6 +939,7 @@ export function createCrystalBall(container, initial = {}) {
     uReset: { value: 1 },
     uBrush: { value: [0, 0, 0, 0] },
     uBrushPower: { value: 0 },
+    uBrushSize: { value: 0.07 },
     uKick: { value: [0, 0, 0, 0] }
   };
 
@@ -1097,6 +1102,8 @@ export function createCrystalBall(container, initial = {}) {
   const heat = { angle: 0, velocity: 0, power: 0, near: 0 };
   const brush = { x: 0, y: 0, vx: 0, vy: 0 };
   const look = { x: 0, y: 0, vx: 0, vy: 0 };
+  const hand = { x: 0, y: 0, vx: 0, vy: 0, power: 0 }; // an outside brush, e.g. a tracked hand
+  const lean = { x: 0, y: 0, power: 0 };
 
   let resizePending = false;
   const applyResize = () => {
@@ -1172,10 +1179,26 @@ export function createCrystalBall(container, initial = {}) {
     brush.vy += ((by - brush.y) / dt - brush.vy) * follow;
     brush.x = bx;
     brush.y = by;
+    // a tracked hand wins over the mouse: the cursor is often still resting over the ball's area
+    // (e.g. on the Camera button) while the user moves their hand
+    const handOn = hand.power > 0.01;
+    if (handOn) {
+      brush.x = hand.x;
+      brush.y = hand.y;
+      brush.vx = hand.vx;
+      brush.vy = hand.vy;
+    }
     const brushSpeed = Math.hypot(brush.vx, brush.vy);
     const cap = brushSpeed > 4 ? 4 / brushSpeed : 1;
     const inBall = Math.exp(-Math.max(0, Math.hypot(bx, by) - 1) * 6);
-    const brushPower = pointer.inside ? strength * inBall * presence : 0;
+    const handReach = Math.exp(-Math.max(0, Math.hypot(hand.x, hand.y) - 1) * 6);
+    const brushPower = handOn
+      ? hand.power * handReach * presence * (reducedMotion ? 0.35 : 1)
+      : pointer.inside
+        ? strength * inBall * presence
+        : 0;
+    hand.power *= Math.exp(-dt / 0.25); // fades unless push() keeps it topped up
+    lean.power *= Math.exp(-dt / 0.6);
     stirEnergy = stirEnergy * Math.exp(-dt / 1.2) + brushPower * Math.min(brushSpeed, 4) * dt;
 
     if (moving) {
@@ -1247,9 +1270,11 @@ export function createCrystalBall(container, initial = {}) {
     fieldUniforms.uHeat.value = [heat.angle, heat.near, heat.power * presence, 0];
 
     dustShared.uDustTime.value = dustTime;
-    const gaze = pointer.inside ? strength * presence : 0;
-    const lookX = clamp(bx, -1.6, 1.6) * gaze;
-    const lookY = clamp(by, -1.6, 1.6) * gaze;
+    const handLeaning = lean.power > 0.01;
+    const gaze = pointer.inside && !handLeaning ? strength * presence : 0;
+    const leaning = handLeaning ? lean.power * presence : 0;
+    const lookX = clamp(bx, -1.6, 1.6) * gaze + lean.x * leaning;
+    const lookY = clamp(by, -1.6, 1.6) * gaze + lean.y * leaning;
     look.vx += (40 * (lookX - look.x) - 11 * look.vx) * dt;
     look.vy += (40 * (lookY - look.y) - 11 * look.vy) * dt;
     look.x += look.vx * dt;
@@ -1276,6 +1301,7 @@ export function createCrystalBall(container, initial = {}) {
       stirUniforms.uDt.value = Math.min(dt, 1 / 30);
       stirUniforms.uBrush.value = [brush.x, brush.y, brush.vx * cap, brush.vy * cap];
       stirUniforms.uBrushPower.value = brushPower;
+      stirUniforms.uBrushSize.value = handOn ? HAND_BRUSH_SIZE : 0.07; // a hand stirs a wider swathe
       stirUniforms.uKick.value = kick ? [kick.x, kick.y, kick.strength, 0] : [0, 0, 0, 0];
       stirUniforms.tOffset.value = layer.read.textures[0];
       stirUniforms.tVelocity.value = layer.read.textures[1];
@@ -1383,6 +1409,18 @@ export function createCrystalBall(container, initial = {}) {
     /** Jolt the dust from a point in ball space (-1..1). */
     kick(x, y, strength) {
       kick = { x, y, strength };
+    },
+    /**
+     * Stir the dust like a moving finger: (x, y) is the brush in ball space (-1..1, y up),
+     * (vx, vy) its velocity in ball radii per second, power 0..1. Call every frame while it moves.
+     */
+    push(x, y, vx, vy, power = 1) {
+      Object.assign(hand, { x, y, vx, vy, power: clamp(power, 0, 2.5) });
+      start();
+    },
+    /** Tilt the dust cloud toward a point in ball space; fades out unless called again. */
+    lean(x, y, power = 1) {
+      Object.assign(lean, { x: clamp(x, -1.4, 1.4), y: clamp(y, -1.4, 1.4), power: clamp(power, 0, 1) });
     },
     /** Fire an electric arc along the rim at `angle` (radians). */
     arc(angle, strength = 1) {

@@ -1,13 +1,21 @@
 // The constellation inside the ball: points of light joined by lines.
 // Idle, they form a slowly turning network sphere. While Nelle thinks they drift apart and keep
 // re-linking as if browsing; when the answer is found they assemble into a shape for the topic
-// (</> for code, a heart for love, an atom for science...). Everything scales with the ball's radius,
-// so the drawing fits any screen size.
+// (</> for code, a heart for love, an atom for science...). Hand gestures play short shapes over the
+// top (a flower, a smile, words) and then hand back to the topic. Everything scales with the ball's
+// radius, so the drawing fits any screen size.
 
-const NODES = 72;
+import { layoutText } from "./strokefont.js";
+
+const NODES = 120; // topic shapes use up to about 70; words and flowers use more, the rest float free
 const TAU = Math.PI * 2;
 const LINK_DISTANCE = 0.42; // in ball units, for the drifting "browsing" web
 const MAX_DPR = 2;
+const FINGER_REACH = 0.5; // constellation points this close to the fingertip (in ball radii) are pulled in
+const FINGER_PULL = 0.45;
+const TRAIL_SECONDS = 0.45;
+const ARRIVE_SECONDS = 0.32; // a gesture group's points are nearly in place this long after setting off
+const LINE_SECONDS = 0.3; // then its lines draw in over this long
 
 const rand = (a, b) => a + Math.random() * (b - a);
 const ease = (current, target, rate, dt) => current + (target - current) * (1 - Math.exp(-rate * dt));
@@ -20,10 +28,13 @@ class Sketch {
     this.step = step;
     this.points = [];
     this.edges = [];
+    this.groups = []; // which group each point belongs to: petals and letters appear in group order
+    this.group = 0;
   }
 
   point(x, y, z = 0) {
     this.points.push([x, y, z + rand(-0.04, 0.04)]);
+    this.groups.push(this.group);
     return this.points.length - 1;
   }
 
@@ -185,6 +196,7 @@ const SHAPES = {
       const r = Math.sqrt(1 - y * y);
       const a = i * Math.PI * (3 - Math.sqrt(5));
       s.points.push([Math.cos(a) * r * 0.86, y * 0.86, Math.sin(a) * r * 0.86]);
+      s.groups.push(0);
     }
     const seen = new Set();
     s.points.forEach((p, i) => {
@@ -205,14 +217,60 @@ const SHAPES = {
 
 export const TOPICS = Object.keys(SHAPES);
 
-/** Build a shape with as many points as will fit, coarsening the sampling until it does. */
-export function buildShape(topic) {
-  const draw = SHAPES[topic] ?? SHAPES.general;
-  for (let step = 0.17; ; step *= 1.15) {
+// ---------- gesture shapes ----------
+
+const PETALS = 7;
+const TOP_ANGLE = Math.PI / 2;
+
+export const GESTURE_SHAPES = {
+  /** A flower: a small centre ring (group 0) and petals as closed curves (one group each). */
+  flower(s) {
+    s.ellipse(0, 0, 0.15, 0.15);
+    for (let i = 0; i < PETALS; i++) {
+      s.group = i + 1;
+      const angle = TOP_ANGLE + (i / PETALS) * TAU;
+      s.ellipse(Math.cos(angle) * 0.5, Math.sin(angle) * 0.5, 0.33, 0.15, { tilt: angle });
+    }
+  },
+  /** A cute smiling face: round outline, happy ^ ^ eyes and a wide smile. */
+  smile(s) {
+    s.ellipse(0, 0, 0.86, 0.86);
+    s.group = 1;
+    s.ellipse(-0.32, 0.2, 0.17, 0.15, { from: 0, to: Math.PI });
+    s.ellipse(0.32, 0.2, 0.17, 0.15, { from: 0, to: Math.PI });
+    s.group = 2;
+    s.ellipse(0, -0.02, 0.54, 0.46, { from: Math.PI * 1.12, to: Math.PI * 1.88 });
+  },
+};
+
+/** Words in the stroke font; each letter is its own group so they spell out in order. */
+function textShape(text) {
+  return (s) => {
+    const { strokes, letters } = layoutText(text, { maxWidth: 2.25, maxHeight: 0.7 });
+    strokes.forEach((stroke, i) => {
+      s.group = letters[i];
+      s.line(stroke);
+    });
+  };
+}
+
+function buildSketch(draw, firstStep) {
+  for (let step = firstStep; ; step *= 1.12) {
     const sketch = new Sketch(step);
     draw(sketch);
     if (sketch.points.length <= NODES) return sketch;
   }
+}
+
+/** Build a topic shape with as many points as will fit, coarsening the sampling until it does. */
+export function buildShape(topic) {
+  return buildSketch(SHAPES[topic] ?? SHAPES.general, 0.17);
+}
+
+/** Build a gesture shape: "flower", "smile" or "text:SOME WORDS". */
+export function buildGestureShape(name) {
+  if (name.startsWith("text:")) return buildSketch(textShape(name.slice(5)), 0.075);
+  return buildSketch(GESTURE_SHAPES[name], 0.12);
 }
 
 // ---------- the constellation ----------
@@ -225,6 +283,15 @@ export class Constellation {
     this.time = 0;
     this.mode = "shape"; // "shape" (holding a topic) or "drift" (thinking / browsing)
     this.topic = "general";
+    this.thinking = false;
+    this.effect = null; // a gesture shape playing over the top, see play()
+    this.glow = 1;
+    this.drawTime = 1.3;
+    this.handTarget = null; // [x, y] in ball radii (y up) while a finger is pointing
+    this.hand = [0, 0]; // eased: the constellation turns and drifts toward the finger
+    this.finger = [0, 0]; // eased quickly: the glowing fingertip
+    this.presence = 0; // 0..1, fades the fingertip glow, trail and pull in and out
+    this.trail = [];
     this.shape = buildShape("general");
     this.yaw = 0;
     this.pitch = 0.32;
@@ -259,42 +326,138 @@ export class Constellation {
   }
 
   /** Show a topic: the points fly into its shape and the lines draw themselves in. */
-  setTopic(topic) {
+  setTopic(topic, force = false) {
     const next = SHAPES[topic] ? topic : "general";
-    const changed = next !== this.topic || this.mode !== "shape";
+    const changed = force || next !== this.topic || this.mode !== "shape";
     this.topic = next;
+    if (this.effect) return; // remembered: the effect hands back to it when it ends
     this.mode = "shape";
     if (!changed) return;
     this.shape = buildShape(next);
     this.assign();
     this.draw = 0;
+    this.drawTime = 1.3;
   }
 
   /** Thinking: the points let go of their shape and drift, linking and unlinking as they search. */
   setThinking(on) {
+    this.thinking = on;
+    if (this.effect) return;
     if (on) {
-      this.mode = "drift";
-      for (const node of this.nodes) node.home = randomInShell(0.42, 0.9);
+      this.drift();
     } else if (this.mode === "drift") {
-      this.setTopic(this.topic);
+      this.setTopic(this.topic, true);
     }
+  }
+
+  drift() {
+    this.mode = "drift";
+    for (const node of this.nodes) node.home = randomInShell(0.42, 0.9);
+  }
+
+  /** Where the user's pointing fingertip is, in ball radii (y up), or null when not pointing. */
+  setHand(point) {
+    if (!point) {
+      this.handTarget = null;
+      return;
+    }
+    const reach = Math.hypot(point[0], point[1]);
+    const inside = reach > 0.95 ? 0.95 / reach : 1; // keep the fingertip inside the glass
+    this.handTarget = [point[0] * inside, point[1] * inside];
+  }
+
+  /** True while a gesture shape is playing. */
+  get busy() {
+    return this.effect !== null;
+  }
+
+  /**
+   * Play a gesture shape, then go back to the topic (or to drifting, if Nelle is thinking).
+   *   from: "centre" (points unfold outward), "dust" (they stream up from the plasma dust) or null
+   *   drawTime: seconds for the groups to appear one after another
+   *   hold: seconds to hold the finished shape
+   *   glow: brightness boost while it plays
+   *   scatter: true to burst the points back into the dust before returning
+   * Returns false (and does nothing) if a gesture shape is already playing.
+   */
+  play(name, { from = null, drawTime = 1.2, hold = 2.5, glow = 1, scatter = false } = {}) {
+    if (this.effect) return false;
+    const calm = this.reducedMotion;
+    this.effect = {
+      start: this.time,
+      drawTime: calm ? Math.min(drawTime, 0.6) : drawTime,
+      hold: calm ? Math.min(hold, 1.6) : hold,
+      glow: calm ? Math.min(glow, 1.2) : glow,
+      scatter: scatter && !calm,
+      phase: "in",
+    };
+    this.mode = "shape";
+    this.shape = buildGestureShape(name);
+    this.assign(this.effect.drawTime);
+    this.draw = 0;
+    this.drawTime = this.effect.drawTime;
+    if (!calm && from) {
+      for (const node of this.nodes) {
+        if (!node.target) continue;
+        node.pos = from === "centre" ? randomInBall(0.08) : dustPoint();
+      }
+    }
+    return true;
+  }
+
+  /** Seconds after an effect starts that a group (petal, letter) sets off. */
+  groupDelay(group) {
+    return (group / Math.max(1, this.groupCount)) * (this.stagger ?? 0);
+  }
+
+  /** Move a playing effect along: hold, maybe scatter, then hand back. */
+  advanceEffect() {
+    const e = this.effect;
+    if (!e) return;
+    const age = this.time - e.start;
+    const shown = e.drawTime + e.hold;
+    if (e.phase === "in" && age >= shown) {
+      if (e.scatter) {
+        e.phase = "out";
+        this.mode = "drift";
+        for (const node of this.nodes) node.home = dustPoint();
+      } else {
+        this.finishEffect();
+      }
+    } else if (e.phase === "out" && age >= shown + 0.8) {
+      this.finishEffect();
+    }
+  }
+
+  finishEffect() {
+    this.effect = null;
+    if (this.thinking) this.drift();
+    else this.setTopic(this.topic, true);
   }
 
   setSearching(on) {
     this.speed = on ? 1.9 : 1;
   }
 
-  /** Give every node a target: the shape's points first (in a shuffled order), the rest float free. */
-  assign() {
+  /**
+   * Give every node a target: the shape's points first (in a shuffled order), the rest float free.
+   * Grouped shapes (petals, letters) set off group by group across `stagger` seconds.
+   */
+  assign(stagger = 0) {
     const order = this.nodes.map((_, i) => i).sort(() => Math.random() - 0.5);
+    const groups = this.shape.groups ?? [];
+    this.groupCount = Math.max(1, ...groups.map((g) => g + 1));
+    this.stagger = stagger;
     this.slot = new Array(this.shape.points.length);
     order.forEach((nodeIndex, k) => {
       const node = this.nodes[nodeIndex];
-      node.target = k < this.shape.points.length ? this.shape.points[k] : null;
-      node.delay = Math.random() * 0.35;
-      if (k < this.shape.points.length) this.slot[k] = nodeIndex;
+      const inShape = k < this.shape.points.length;
+      node.target = inShape ? this.shape.points[k] : null;
+      node.delay =
+        stagger && this.groupCount > 1 && inShape ? this.groupDelay(groups[k] ?? 0) + Math.random() * 0.04 : Math.random() * 0.35;
+      if (inShape) this.slot[k] = nodeIndex;
     });
-    this.edges = this.shape.edges.map(([a, b]) => [this.slot[a], this.slot[b]]);
+    this.edges = this.shape.edges.map(([a, b]) => [this.slot[a], this.slot[b], groups[a] ?? 0]);
     this.assignedAt = this.time;
   }
 
@@ -304,18 +467,33 @@ export class Constellation {
     const t = this.time;
     const motion = this.reducedMotion ? 0.25 : 1;
     this.alpha = ease(this.alpha, 1, 1.2, dt);
-    this.draw = Math.min(1, this.draw + dt / 1.3);
+    this.draw = Math.min(1, this.draw + dt / this.drawTime);
+    this.advanceEffect();
+    this.glow = ease(this.glow, this.effect?.phase === "in" ? this.effect.glow : 1, 3, dt);
 
-    // turning: the network globe spins; topic shapes sway so they read as 3D without going edge-on
-    if (this.mode === "drift" || this.topic === "general") {
+    // turning: the network globe spins; topic shapes sway so they read as 3D without going edge-on;
+    // gesture shapes face you almost square on so a word or a face reads at a glance
+    const facing = this.effect ? 0.25 : 1;
+    if (this.mode === "drift" || (this.topic === "general" && !this.effect)) {
       this.yaw += dt * (this.mode === "drift" ? 0.45 * this.speed : 0.22) * motion;
       this.pitch = ease(this.pitch, 0.32, 1, dt);
     } else {
-      const goal = Math.sin(t * 0.42) * 0.36 * motion;
+      const goal = Math.sin(t * 0.42) * 0.36 * motion * facing;
       const near = goal + TAU * Math.round((this.yaw - goal) / TAU);
-      this.yaw = ease(this.yaw, near, 1.6, dt);
-      this.pitch = ease(this.pitch, Math.sin(t * 0.29) * 0.14 * motion, 1.6, dt);
+      this.yaw = ease(this.yaw, near, this.effect ? 4 : 1.6, dt);
+      this.pitch = ease(this.pitch, Math.sin(t * 0.29) * 0.14 * motion * facing, this.effect ? 4 : 1.6, dt);
     }
+
+    const [hx, hy] = this.handTarget ?? [0, 0];
+    const follow = this.handTarget ? 7 : 1.5; // snappy toward the finger, slow back to centre
+    this.hand = [ease(this.hand[0], hx, follow, dt), ease(this.hand[1], hy, follow, dt)];
+    if (this.handTarget) {
+      if (this.presence < 0.05) this.finger = [...this.handTarget]; // appear where the finger is
+      this.finger = [ease(this.finger[0], hx, 16, dt), ease(this.finger[1], hy, 16, dt)];
+      this.trail.push({ x: this.finger[0], y: this.finger[1], t: this.time });
+    }
+    this.presence = ease(this.presence, this.handTarget ? 1 : 0, this.handTarget ? 6 : 2.5, dt);
+    this.trail = this.trail.filter((p) => this.time - p.t < TRAIL_SECONDS);
 
     this.moveNodes(dt, t, motion);
     const projected = this.project(ball, voice);
@@ -334,7 +512,7 @@ export class Constellation {
         const s = this.speed * (drifting ? 1 : 0.5);
         goal = node.home.map((h, i) => h + Math.sin(t * node.freq[i] * s + node.phase[i]) * wander);
       }
-      const rate = drifting ? 2.2 : node.target ? 3.2 : 1;
+      const rate = drifting ? 2.2 : node.target ? (this.effect ? 5.5 : 3.2) : 1;
       node.pos = node.pos.map((p, i) => ease(p, goal[i], rate, dt));
       node.lit = Math.max(0, node.lit - dt * 1.6);
     }
@@ -342,11 +520,23 @@ export class Constellation {
 
   /** Rotate and project every node to screen pixels, with depth for size and brightness. */
   project(ball, voice) {
-    const cy = Math.cos(this.yaw);
-    const sy = Math.sin(this.yaw);
-    const cp = Math.cos(this.pitch);
-    const sp = Math.sin(this.pitch);
+    // the hand turns the constellation toward itself and pulls it a little that way
+    const [hx, hy] = this.hand;
+    const turn = this.reducedMotion ? 0.4 : 1;
+    const yaw = this.yaw + hx * 0.85 * turn;
+    const pitch = this.pitch - hy * 0.55 * turn;
+    const cy = Math.cos(yaw);
+    const sy = Math.sin(yaw);
+    const cp = Math.cos(pitch);
+    const sp = Math.sin(pitch);
     const scale = ball.radius * 0.62 * (1 + voice * 0.05);
+    const shiftX = hx * ball.radius * 0.22 * turn;
+    const shiftY = -hy * ball.radius * 0.16 * turn;
+    // the fingertip is a magnet: nearby points are drawn toward it and light up
+    const fx = ball.x + this.finger[0] * ball.radius;
+    const fy = ball.y - this.finger[1] * ball.radius;
+    const reach = FINGER_REACH * ball.radius;
+    const pull = FINGER_PULL * this.presence * turn;
     return this.nodes.map((node) => {
       const [x, y, z] = node.pos;
       const x1 = x * cy + z * sy;
@@ -354,11 +544,16 @@ export class Constellation {
       const y2 = y * cp - z1 * sp;
       const z2 = y * sp + z1 * cp;
       const perspective = 2.6 / (2.6 - z2);
-      return {
-        x: ball.x + x1 * scale * perspective,
-        y: ball.y - y2 * scale * perspective,
-        depth: clamp01((z2 + 1) / 2),
-      };
+      let px = ball.x + shiftX + x1 * scale * perspective;
+      let py = ball.y + shiftY - y2 * scale * perspective;
+      const d = Math.hypot(fx - px, fy - py);
+      const near = pull > 0.01 && d < reach ? (1 - d / reach) ** 2 : 0;
+      if (near) {
+        px += (fx - px) * near * pull;
+        py += (fy - py) * near * pull;
+        node.lit = Math.max(node.lit, near * this.presence * 1.4);
+      }
+      return { x: px, y: py, depth: clamp01((z2 + 1) / 2), near };
     });
   }
 
@@ -366,12 +561,22 @@ export class Constellation {
   links(projected) {
     if (this.mode === "shape") {
       const total = this.edges.length;
+      if (this.groupCount > 1 && this.effect) {
+        // gesture shapes draw petal by petal (letter by letter): each group's lines draw in once its
+        // points have nearly arrived, so lines never stretch between points still in flight
+        const age = this.time - this.assignedAt;
+        return this.edges.map(([a, b, group]) => {
+          const arrived = this.groupDelay(group) + ARRIVE_SECONDS;
+          return { a, b, grow: clamp01((age - arrived) / LINE_SECONDS), strength: 1 };
+        });
+      }
       return this.edges.map(([a, b], i) => {
         const start = (i / Math.max(1, total)) * 0.55;
         const grow = clamp01((this.draw - start) / 0.45);
         return { a, b, grow, strength: 1 };
       });
     }
+    if (this.effect?.phase === "out") return []; // scattering back into the dust: no links
     const out = [];
     for (let a = 0; a < NODES; a++) {
       for (let b = a + 1; b < NODES; b++) {
@@ -382,6 +587,52 @@ export class Constellation {
       }
     }
     return out;
+  }
+
+  /** The pointing fingertip: a comet trail, threads to the points it pulls, and a bright core. */
+  paintFinger(projected, ball, tone, unit) {
+    const { ctx } = this;
+    const a = this.presence;
+    if (a < 0.02) return;
+    const at = ([x, y]) => [ball.x + x * ball.radius, ball.y - y * ball.radius];
+
+    // comet trail: older segments thinner and fainter
+    for (let i = 1; i < this.trail.length; i++) {
+      const age = (this.time - this.trail[i].t) / TRAIL_SECONDS;
+      const [x0, y0] = at([this.trail[i - 1].x, this.trail[i - 1].y]);
+      const [x1, y1] = at([this.trail[i].x, this.trail[i].y]);
+      for (const [width, alpha] of [[6, 0.12], [1.8, 0.7]]) {
+        ctx.lineWidth = width * unit * (1 - age);
+        ctx.strokeStyle = tone(alpha * (1 - age) * a);
+        ctx.beginPath();
+        ctx.moveTo(x0, y0);
+        ctx.lineTo(x1, y1);
+        ctx.stroke();
+      }
+    }
+
+    // threads from the fingertip to the points it is pulling
+    const [fx, fy] = at(this.finger);
+    ctx.lineWidth = 0.9 * unit;
+    for (const p of projected) {
+      if (!p.near) continue;
+      ctx.strokeStyle = tone(0.55 * p.near * a);
+      ctx.beginPath();
+      ctx.moveTo(fx, fy);
+      ctx.lineTo(p.x, p.y);
+      ctx.stroke();
+    }
+
+    // the fingertip itself: a white-hot core in a pink halo that breathes
+    const halo = unit * (16 + Math.sin(this.time * 6) * 2.5);
+    const glow = ctx.createRadialGradient(fx, fy, 0, fx, fy, halo);
+    glow.addColorStop(0, `rgba(255,255,255,${0.95 * a})`);
+    glow.addColorStop(0.18, tone(0.75 * a));
+    glow.addColorStop(1, tone(0));
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(fx, fy, halo, 0, TAU);
+    ctx.fill();
   }
 
   spawnPulses(dt, voice) {
@@ -412,7 +663,7 @@ export class Constellation {
     const light = color.map((c) => c + (1 - c) * 0.62);
     const tone = (a) => `rgba(${(light[0] * 255) | 0},${(light[1] * 255) | 0},${(light[2] * 255) | 0},${a})`;
     const unit = Math.max(0.6, ball.radius / 260); // line widths and dot sizes follow the ball
-    const shine = this.alpha * (0.85 + voice * 0.4);
+    const shine = this.alpha * (0.85 + voice * 0.4) * this.glow;
 
     const links = this.links(projected);
     this.lastLinks = links;
@@ -450,6 +701,8 @@ export class Constellation {
       ctx.fill();
     }
 
+    this.paintFinger(projected, ball, tone, unit);
+
     // pulses: sparks of thought running along the lines
     for (const pulse of this.pulses) {
       const k = (this.time - pulse.start) / pulse.duration;
@@ -477,6 +730,12 @@ function randomInShell(inner, outer) {
   const length = Math.hypot(...p) || 1;
   const r = inner + (outer - inner) * Math.random();
   return p.map((v) => (v / length) * r);
+}
+
+/** A point down in the plasma dust, which settles in the lower part of the ball. */
+function dustPoint() {
+  const p = randomInBall(0.9);
+  return [p[0], -Math.abs(p[1]) * 0.8 - 0.25, p[2]];
 }
 
 function randomInBall(radius) {
