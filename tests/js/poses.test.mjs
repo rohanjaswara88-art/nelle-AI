@@ -5,7 +5,23 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { MotionFilter, PoseGate, fingerStates, indexTip, isFive, isPoint, isThree, isThumbsUp, isTwo, palmCenter } from "../../nelle2/web/poses.js";
+import {
+  FINGERS,
+  FingerScroll,
+  MotionFilter,
+  OneEuroFilter,
+  PoseGate,
+  SCROLL_GAP_MS,
+  fingerStates,
+  indexTip,
+  isFive,
+  isPoint,
+  isThree,
+  isThumbsUp,
+  isTwo,
+  palmCenter,
+  scrollPoint,
+} from "../../nelle2/web/poses.js";
 import { classifyPose } from "../../nelle2/web/gestures.js";
 import { layoutText, GLYPHS } from "../../nelle2/web/strokefont.js";
 
@@ -242,4 +258,114 @@ test("every glyph stays on its grid", () => {
       assert.ok(x >= 0 && x <= 4.2 && y >= -0.5 && y <= 6, `${char} ${x},${y}`);
     }
   }
+});
+
+// ---------- three fingers: fingertip scrolling, mouse style ----------
+
+const threeHand = () => hands.find((h) => h.name === "three/right").landmarks;
+
+// Tilt the three scrolling fingers forward at their knuckles by `angle` radians: the wrist, palm and
+// knuckles stay exactly where they are, only the fingers move (as seen by the camera).
+function tiltFingers(hand, angle) {
+  const out = hand.map((p) => ({ ...p }));
+  for (const name of ["index", "middle", "ring"]) {
+    const mcp = hand[FINGERS[name].mcp];
+    for (let i = FINGERS[name].mcp + 1; i <= FINGERS[name].tip; i++) {
+      const up = mcp.y - hand[i].y; // the finger points up the picture
+      out[i].y = mcp.y - up * Math.cos(angle);
+      out[i].z = mcp.z - (up * Math.sin(angle)) / (4 / 3); // tips come toward the camera (z in width units)
+    }
+  }
+  return out;
+}
+
+const shift = (hand, dx, dy) => hand.map((p) => ({ ...p, x: p.x + dx, y: p.y + dy }));
+const scale = (hand, k) => hand.map((p) => ({ ...p, x: 0.5 + (p.x - 0.5) * k, y: 0.5 + (p.y - 0.5) * k }));
+
+function runScroll(frames, { step = 33 } = {}) {
+  const scroll = new FingerScroll();
+  let total = 0;
+  frames.forEach((hand, i) => {
+    total += scroll.update(hand, i * step).dy;
+  });
+  return total;
+}
+
+test("tilting just the three fingers scrolls; the hand doesn't have to move", () => {
+  const hand = threeHand();
+  const frames = Array.from({ length: 16 }, (_, i) => tiltFingers(hand, (i / 15) * (Math.PI / 6)));
+  for (const f of frames) assert.equal(isThree(f), true, "still three fingers while tilting");
+  const total = runScroll(frames);
+  assert.ok(total > 150, `a 30° finger tilt should scroll a good way, got ${total.toFixed(0)} px`);
+});
+
+test("fingertips up scrolls up, down scrolls down", () => {
+  const hand = threeHand();
+  const down = runScroll(Array.from({ length: 10 }, (_, i) => shift(hand, 0, i * 0.006)));
+  const up = runScroll(Array.from({ length: 10 }, (_, i) => shift(hand, 0, -i * 0.006)));
+  assert.ok(down > 0 && up < 0, `down ${down}, up ${up}`);
+});
+
+test("a small movement still scrolls, like a mouse", () => {
+  const hand = threeHand();
+  // 1% of the frame height, about a centimetre of fingertip at arm's length
+  const total = runScroll(Array.from({ length: 12 }, (_, i) => shift(hand, 0, Math.min(i, 6) * 0.0017)));
+  assert.ok(total > 15, `a tiny move should still scroll, got ${total.toFixed(1)} px`);
+});
+
+test("a still hand with camera jitter doesn't scroll", () => {
+  const hand = threeHand();
+  let seed = 7;
+  const noise = () => ((seed = (seed * 16807) % 2147483647) / 2147483647 - 0.5) * 0.004; // ±0.002
+  const frames = Array.from({ length: 90 }, () => hand.map((p) => ({ ...p, x: p.x + noise(), y: p.y + noise() })));
+  const total = runScroll(frames);
+  assert.ok(Math.abs(total) < 6, `jitter scrolled ${total.toFixed(1)} px`);
+});
+
+test("the same finger movement scrolls the same near or far from the camera", () => {
+  const moves = (hand, size) => Array.from({ length: 12 }, (_, i) => shift(hand, 0, Math.min(i, 8) * 0.004 * size));
+  const near = runScroll(moves(scale(threeHand(), 1.3), 1.3));
+  const far = runScroll(moves(scale(threeHand(), 0.7), 0.7));
+  assert.ok(Math.abs(near - far) / Math.abs(near) < 0.12, `near ${near.toFixed(0)} vs far ${far.toFixed(0)}`);
+});
+
+test("a quick flick goes further than the same distance moved slowly", () => {
+  const hand = threeHand();
+  const distance = 0.06;
+  const fast = runScroll(Array.from({ length: 10 }, (_, i) => shift(hand, 0, (Math.min(i, 3) / 3) * distance)));
+  const slow = runScroll(Array.from({ length: 40 }, (_, i) => shift(hand, 0, (Math.min(i, 30) / 30) * distance)));
+  assert.ok(fast > slow * 1.3, `fast ${fast.toFixed(0)} vs slow ${slow.toFixed(0)}`);
+});
+
+test("moving closer to the camera is not a scroll", () => {
+  const hand = threeHand();
+  // grow around the wrist, as when leaning in: the tips rise in the picture but nothing scrolled
+  const wrist = hand[0];
+  const grow = (k) => hand.map((p) => ({ ...p, x: wrist.x + (p.x - wrist.x) * k, y: wrist.y + (p.y - wrist.y) * k }));
+  const total = runScroll(Array.from({ length: 15 }, (_, i) => grow(1 + i * 0.01)));
+  const tilt = runScroll(Array.from({ length: 15 }, (_, i) => tiltFingers(hand, (i / 14) * 0.5)));
+  assert.ok(Math.abs(total) < Math.abs(tilt) / 3, `leaning in ${total.toFixed(0)} vs a tilt ${tilt.toFixed(0)}`);
+});
+
+test("a gap in tracking restarts from where the fingers are, without a jump", () => {
+  const hand = threeHand();
+  const scroll = new FingerScroll();
+  scroll.update(hand, 0);
+  scroll.update(hand, 33);
+  const after = scroll.update(shift(hand, 0, 0.2), 33 + SCROLL_GAP_MS + 50);
+  assert.equal(after.dy, 0);
+});
+
+test("the 1€ filter holds a constant still and follows a jump", () => {
+  const filter = new OneEuroFilter({ minCutoff: 1.2, beta: 25 });
+  for (let i = 0; i < 10; i++) assert.equal(filter.filter(0.5, i / 30), 0.5);
+  let v = 0;
+  for (let i = 10; i < 25; i++) v = filter.filter(0.8, i / 30);
+  assert.ok(v > 0.79, `caught up to ${v}`);
+});
+
+test("scrollPoint is the middle of the three scrolling fingertips", () => {
+  const hand = threeHand();
+  const p = scrollPoint(hand);
+  assert.ok(Math.abs(p.y - (hand[8].y + hand[12].y + hand[16].y) / 3) < 1e-12);
 });

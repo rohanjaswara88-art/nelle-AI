@@ -299,3 +299,142 @@ export class MotionFilter {
     return false;
   }
 }
+
+// ---------- three-finger scrolling: the fingertips drive it, like a mouse ----------
+
+/** The point that scrolls: the average of the index, middle and ring fingertips (x, y and depth z). */
+export function scrollPoint(hand) {
+  const tips = [FINGERS.index.tip, FINGERS.middle.tip, FINGERS.ring.tip];
+  const mean = (key) => tips.reduce((sum, i) => sum + (hand[i][key] ?? 0), 0) / tips.length;
+  return { x: mean("x"), y: mean("y"), z: mean("z") };
+}
+
+const SCROLL_KNUCKLES = [FINGERS.index.mcp, FINGERS.middle.mcp, FINGERS.ring.mcp];
+
+/** The middle of the three scrolling fingers' knuckles: the hand's own position for scrolling. */
+export function scrollKnuckles(hand) {
+  const mean = (key) => SCROLL_KNUCKLES.reduce((sum, i) => sum + (hand[i][key] ?? 0), 0) / SCROLL_KNUCKLES.length;
+  return { x: mean("x"), y: mean("y"), z: mean("z") };
+}
+
+/**
+ * Where the fingers point, in hand lengths, measured from their knuckles: it grows as the fingertips
+ * go down in the picture or tip toward the camera. Tipping the fingers forward at the knuckles
+ * mostly changes their depth, not their height in the picture, so depth counts too; that is what
+ * lets a finger-only tilt scroll. Being relative to the knuckles and divided by the hand's size,
+ * leaning in or out doesn't change it.
+ */
+export function fingerReach(hand, aspect = DEFAULT_ASPECT, size = handLength(hand, aspect)) {
+  const tip = scrollPoint(hand);
+  const base = scrollKnuckles(hand);
+  const down = tip.y - base.y;
+  const toward = -(tip.z - base.z) * aspect; // MediaPipe z: smaller is closer
+  return (down + toward) / Math.max(0.02, size);
+}
+
+/**
+ * The 1€ filter (Casiez et al., 2012): heavy smoothing when still, almost none when moving fast.
+ * Kills fingertip jitter without the lag of a plain average. Time is in seconds.
+ */
+export class OneEuroFilter {
+  constructor({ minCutoff = 1, beta = 0, dCutoff = 1 } = {}) {
+    this.minCutoff = minCutoff;
+    this.beta = beta;
+    this.dCutoff = dCutoff;
+    this.reset();
+  }
+
+  reset() {
+    this.value = null;
+    this.speed = 0;
+    this.time = null;
+  }
+
+  static alpha(cutoff, dt) {
+    const tau = 1 / (2 * Math.PI * cutoff);
+    return 1 / (1 + tau / dt);
+  }
+
+  filter(value, time) {
+    if (this.value === null) {
+      this.value = value;
+      this.time = time;
+      return value;
+    }
+    const dt = Math.max(1e-3, time - this.time);
+    this.time = time;
+    const rawSpeed = (value - this.value) / dt;
+    this.speed += (rawSpeed - this.speed) * OneEuroFilter.alpha(this.dCutoff, dt);
+    const cutoff = this.minCutoff + this.beta * Math.abs(this.speed);
+    this.value += (value - this.value) * OneEuroFilter.alpha(cutoff, dt);
+    return this.value;
+  }
+}
+
+// Fingertips moving one hand length (wrist to middle knuckle) scroll this many pixels. Tilting the
+// three fingers at the knuckles moves the tips about half a hand length, so a small finger tilt
+// is a few hundred pixels, and the hand itself never has to move.
+export const SCROLL_PX_PER_HAND = 1100;
+export const SCROLL_ACCEL = 1.5; // quick flicks go up to (1 + this) times further, like a mouse
+export const SCROLL_ACCEL_SPEED = 3; // hand lengths per second at which the extra is full
+export const SCROLL_BACKLASH = 0.01; // hand lengths: wobble smaller than this never scrolls
+export const SCROLL_GAP_MS = 200; // after a longer gap, start again from where the fingers are
+
+/**
+ * Turns fingertip movement into scroll pixels, mouse style: a direct position-to-distance mapping
+ * (not speed-to-speed), measured in hand lengths so it feels the same near or far from the camera.
+ * update() returns { dy, vy }: pixels to scroll now (down is positive) and the smoothed speed in
+ * pixels per second, or null without a hand.
+ */
+export class FingerScroll {
+  constructor({ pxPerHand = SCROLL_PX_PER_HAND, accel = SCROLL_ACCEL } = {}) {
+    this.pxPerHand = pxPerHand;
+    this.accel = accel;
+    this.filter = new OneEuroFilter({ minCutoff: 0.6, beta: 6, dCutoff: 1.5 });
+    this.reset();
+  }
+
+  reset() {
+    this.filter.reset();
+    this.anchor = null;
+    this.size = null;
+    this.time = null;
+    this.vy = 0;
+    this.baseY = null;
+    this.handTravel = 0;
+  }
+
+  update(hand, now, aspect = DEFAULT_ASPECT) {
+    if (!hand) {
+      this.reset();
+      return null;
+    }
+    if (this.time !== null && now - this.time > SCROLL_GAP_MS) this.reset();
+    const size = Math.max(0.02, handLength(hand, aspect));
+    this.size = this.size === null ? size : this.size + (size - this.size) * 0.2;
+    // two parts, both in hand lengths: the hand moving (the knuckles' own steps, so leaning in
+    // doesn't add up) plus where the fingers point relative to their knuckles (a finger-only tilt)
+    const baseY = scrollKnuckles(hand).y;
+    this.handTravel = this.baseY === null ? 0 : this.handTravel + (baseY - this.baseY) / this.size;
+    this.baseY = baseY;
+    const y = this.filter.filter(this.handTravel + fingerReach(hand, aspect, size), now / 1000);
+    if (this.anchor === null) {
+      this.anchor = y;
+      this.time = now;
+      return { dy: 0, vy: 0 };
+    }
+    const dt = Math.max(1e-3, (now - this.time) / 1000);
+    this.time = now;
+    // backlash: the anchor trails the fingertips by up to SCROLL_BACKLASH, so jitter is absorbed
+    // but every bit of real movement past it counts (no dead zone that eats slow scrolls)
+    let moved = 0;
+    if (y > this.anchor + SCROLL_BACKLASH) moved = y - SCROLL_BACKLASH - this.anchor;
+    else if (y < this.anchor - SCROLL_BACKLASH) moved = y + SCROLL_BACKLASH - this.anchor;
+    this.anchor += moved;
+    const speed = Math.abs(moved) / dt;
+    const gain = this.pxPerHand * (1 + this.accel * Math.min(1, speed / SCROLL_ACCEL_SPEED));
+    const dy = moved * gain;
+    this.vy += (dy / dt - this.vy) * 0.5;
+    return { dy, vy: this.vy };
+  }
+}

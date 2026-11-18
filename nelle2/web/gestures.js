@@ -10,6 +10,7 @@
 import {
   FINGER_DEAD_ZONE,
   FINGER_SMOOTHING,
+  FingerScroll,
   MotionFilter,
   PoseGate,
   fingerStates,
@@ -19,7 +20,6 @@ import {
   isThree,
   isThumbsUp,
   isTwo,
-  palmCenter,
 } from "./poses.js";
 
 const VISION = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.2.0";
@@ -35,8 +35,6 @@ const SLOW_DETECT_MS = 12;
 // detections in a row, and stop after this many without, so a flicker neither starts nor breaks them.
 const MODE_START_FRAMES = 2;
 const MODE_STOP_FRAMES = 6;
-const SCROLL_SMOOTHING = 0.6;
-const SCROLL_DEAD_ZONE = 0.004;
 
 /** The gesture registry. Order matters only when two rules could match; the rules are mutually exclusive. */
 export const GESTURES = [
@@ -102,8 +100,9 @@ export class CameraError extends Error {
  *   gesture  { name }                       a registered pose was held (debounced, see PoseGate)
  *   move     { x, y, vx, vy, wave } | null  index fingertip in 0..1 screen space (mirrored), per
  *                                           second, only while pointing; null when not following
- *   scroll   { vy } | null                  palm speed up/down (frame heights per second, down is
- *                                           positive) while three fingers are up; null when it ends
+ *   scroll   { dy, vy } | null              while three fingers are up: pixels to scroll now and the
+ *                                           speed in px/s (down is positive), from the fingertips,
+ *                                           so tilting the fingers is enough; null when it ends
  *   pose     { pose, states, ... } | null   every detection, for the debug overlay
  */
 export class GestureTracker {
@@ -114,7 +113,7 @@ export class GestureTracker {
     this.listeners = {};
     this.gate = new PoseGate();
     this.filter = new MotionFilter({ smoothing: FINGER_SMOOTHING, deadZone: FINGER_DEAD_ZONE });
-    this.scrollFilter = new MotionFilter({ smoothing: SCROLL_SMOOTHING, deadZone: SCROLL_DEAD_ZONE });
+    this.fingerScroll = new FingerScroll();
     this.follow = { active: false, seen: 0, missed: 0 };
     this.scroll = { active: false, seen: 0, missed: 0 };
     this.states = null;
@@ -161,7 +160,7 @@ export class GestureTracker {
   resetTracking() {
     this.gate.reset();
     this.filter.reset();
-    this.scrollFilter.reset();
+    this.fingerScroll.reset();
     this.follow = { active: false, seen: 0, missed: 0 };
     this.scroll = { active: false, seen: 0, missed: 0 };
     this.states = null;
@@ -189,17 +188,22 @@ export class GestureTracker {
     if (this.follow.active && hand) this.emit("move", this.filter.update(indexTip(hand), now));
   }
 
-  /** Three fingers up: moving the hand up and down scrolls. */
-  updateScroll(hand, states, now) {
-    const changed = GestureTracker.updateMode(this.scroll, Boolean(hand) && isThree(hand, states));
+  /**
+   * Three fingers up: moving the fingertips up and down scrolls, like a mouse. Tilting the fingers
+   * is enough; the hand can stay where it is. Only frames that clearly show three fingers are
+   * measured, so a blurred frame can't make the page jump.
+   */
+  updateScroll(hand, states, now, aspect) {
+    const three = Boolean(hand) && isThree(hand, states);
+    const changed = GestureTracker.updateMode(this.scroll, three);
     if (changed && !this.scroll.active) {
-      this.scrollFilter.reset();
+      this.fingerScroll.reset();
       this.emit("scroll", null);
     }
-    if (this.scroll.active && hand) {
-      const motion = this.scrollFilter.update(palmCenter(hand), now);
-      this.emit("scroll", { vy: motion.vy });
-    }
+    if (!three) return;
+    // measured from the first frame, so the fingers' starting point is known when scrolling begins
+    const step = this.fingerScroll.update(hand, now, aspect);
+    if (this.scroll.active && step) this.emit("scroll", step);
   }
 
   async start() {
@@ -300,7 +304,7 @@ export class GestureTracker {
     const fired = this.gate.update(quiet ? null : pose, hand ? 1 : 0, now);
     if (fired) this.emit("gesture", { name: fired });
     this.updateFollow(hand, states, now);
-    this.updateScroll(hand, states, now);
+    this.updateScroll(hand, states, now, aspect);
     this.emit(
       "pose",
       hand
