@@ -107,7 +107,7 @@ export function isFive(hand, states = fingerStates(hand), aspect = DEFAULT_ASPEC
 
 /**
  * Pointing: index extended, middle, ring and pinky folded, thumb anything. Not a one-shot gesture:
- * while it holds, the fingertip moves the hand cursor and the thumb is its button.
+ * while it holds, the sphere follows the index fingertip.
  */
 export function isPoint(hand, states = fingerStates(hand)) {
   return (
@@ -129,49 +129,6 @@ export function isThree(hand, states = fingerStates(hand)) {
     states.ring === "extended" &&
     states.pinky === "folded"
   );
-}
-
-// ---------- the hand mouse: the thumb is the button, the OK sign zooms ----------
-
-// The thumb counts as pressed when its tip is within this many hand lengths of the pointing
-// finger's lower half (knuckle to middle joint), released beyond the second; in between it keeps
-// its last state, so a click never flickers.
-export const TAP_PRESS = 0.2;
-export const TAP_RELEASE = 0.3;
-// OK sign: thumb and index tips within this many hand lengths, with middle, ring and pinky up.
-export const OK_TOUCH = 0.3;
-
-function segmentDistance(p, a, b, aspect) {
-  const ax = a.x * aspect, ay = a.y, az = (a.z ?? 0) * aspect;
-  const dx = b.x * aspect - ax, dy = b.y - ay, dz = (b.z ?? 0) * aspect - az;
-  const px = p.x * aspect - ax, py = p.y - ay, pz = (p.z ?? 0) * aspect - az;
-  const t = Math.max(0, Math.min(1, (px * dx + py * dy + pz * dz) / Math.max(1e-9, dx * dx + dy * dy + dz * dz)));
-  return Math.hypot(px - t * dx, py - t * dy, pz - t * dz);
-}
-
-/** How far the thumb tip is from the side of the pointing finger, in hand lengths. */
-export function thumbTap(hand, aspect = DEFAULT_ASPECT) {
-  const size = Math.max(0.02, handLength(hand, aspect));
-  return segmentDistance(hand[THUMB.tip], hand[FINGERS.index.mcp], hand[FINGERS.index.pip], aspect) / size;
-}
-
-/**
- * The thumb as a mouse button: "down" when it lies against the pointing finger (or is clearly
- * folded), "up" when it sticks out like a finger gun's hammer, otherwise the previous state.
- */
-export function thumbButton(hand, states, previous = "up", aspect = DEFAULT_ASPECT) {
-  const tap = thumbTap(hand, aspect);
-  if (tap < TAP_PRESS || states.thumb === "folded") return "down";
-  if (tap > TAP_RELEASE && states.thumb === "extended") return "up";
-  return previous;
-}
-
-/** OK sign 👌: thumb and index tips touching, middle, ring and pinky up. Moving it up or down zooms. */
-export function isOk(hand, states = fingerStates(hand), aspect = DEFAULT_ASPECT) {
-  if (!["middle", "ring", "pinky"].every((name) => states[name] === "extended")) return false;
-  if (states.index === "extended") return false;
-  const size = Math.max(0.02, handLength(hand, aspect));
-  return distance(hand[THUMB.tip], hand[FINGERS.index.tip], aspect) / size < OK_TOUCH;
 }
 
 /** The index fingertip, the point that leads while pointing. */

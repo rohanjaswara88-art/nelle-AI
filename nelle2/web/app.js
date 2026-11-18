@@ -1,7 +1,6 @@
 // Emotion controller: turns each reply into the ball's mood, motion and topic shape, the voice and the chat.
 import { attachGestureDebug } from "./gesture-debug.js";
 import { CameraError, GestureTracker } from "./gestures.js";
-import { HandMouse } from "./handmouse.js";
 import { HandScroller } from "./handscroll.js";
 import { Stage } from "./stage.js";
 import { SpeechInput, VoicePlayer } from "./voice.js";
@@ -42,23 +41,6 @@ const player = new VoicePlayer();
 const speech = new SpeechInput();
 const tracker = new GestureTracker($("#cam"));
 const scroller = new HandScroller(els.log, $("#scroll-cue"));
-const mouse = new HandMouse({
-  stage,
-  ask: (text) => send(text),
-  toast: (text) => toast(text),
-  zoomTarget: els.log,
-  zoomCue: $("#zoom-cue"),
-  storage: {
-    get: (key) => {
-      try {
-        return localStorage.getItem(key);
-      } catch {
-        return null;
-      }
-    },
-    set: (key, value) => writeSetting(key, value),
-  },
-});
 
 // Gesture name (from the registry in gestures.js) -> animation. Add a line here for a new gesture.
 const GESTURE_ACTIONS = {
@@ -83,7 +65,6 @@ let cameraOn = false;
 stage.onFrame((dt) => {
   tracker.tick(performance.now());
   scroller.tick(dt);
-  mouse.tick();
   if (state === "speaking") stage.setLevel(player.level());
   if (state === "thinking") {
     const label = stage.searching ? "Searching" : "Thinking";
@@ -383,9 +364,7 @@ tracker.on("gesture", ({ name }) => {
   if (stage.gestureBusy) return; // one gesture animation at a time
   GESTURE_ACTIONS[name]?.();
 });
-// pointing moves the hand cursor (clicks, selection, right-click menu); the sphere reacts under it
-tracker.on("move", (move) => mouse.update(move));
-tracker.on("zoom", (zoom) => mouse.zoom(zoom));
+tracker.on("move", (move) => stage.handMove(move));
 tracker.on("scroll", (scroll) => {
   scroller.update(scroll);
   stage.handScroll(scroll);

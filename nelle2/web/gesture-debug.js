@@ -34,7 +34,7 @@ export function attachGestureDebug(tracker) {
       return;
     }
     const fingers = FINGERS.map((name) => `${name.padEnd(6)} ${MARK[info.states[name]]} ${info.states[name]}`).join("\n");
-    live.textContent = `${fingers}\n\npose   ${info.pose ?? "—"}${info.following ? `  · cursor ☝ (thumb ${info.button}, tap ${info.tap.toFixed(2)})` : ""}${info.scrolling ? "  · scrolling ↕" : ""}${info.zooming ? "  · zoom 👌" : ""}${info.quiet ? " (typing, ignored)" : ""}\nside   ${info.score.toFixed(2)} · ${info.world ? "3D" : "2D"}\ndetections ${fps}/s · ${info.detectMs.toFixed(1)} ms`;
+    live.textContent = `${fingers}\n\npose   ${info.pose ?? "—"}${info.following ? "  · following ☝" : ""}${info.scrolling ? "  · scrolling ↕" : ""}${info.quiet ? " (typing, ignored)" : ""}\nside   ${info.score.toFixed(2)} · ${info.world ? "3D" : "2D"}\ndetections ${fps}/s · ${info.detectMs.toFixed(1)} ms`;
   });
 
   tracker.on("gesture", ({ name }) => {
