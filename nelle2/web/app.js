@@ -2,6 +2,7 @@
 import { attachGestureDebug } from "./gesture-debug.js";
 import { CameraError, GestureTracker } from "./gestures.js";
 import { HandScroller } from "./handscroll.js";
+import { spotlight } from "./spotlight.js";
 import { Stage } from "./stage.js";
 import { SpeechInput, VoicePlayer } from "./voice.js";
 
@@ -35,6 +36,7 @@ const TYPING_QUIET_MS = 900; // hands on the keyboard shouldn't fire gestures
 const MIN_THINKING_MS = 1100; // long enough for the thinking animation to read, even offline
 
 const stage = new Stage($("#fog"), $("#ball"), $("#mind"));
+spotlight($(".topbar"));
 const player = new VoicePlayer();
 const speech = new SpeechInput();
 const tracker = new GestureTracker($("#cam"));

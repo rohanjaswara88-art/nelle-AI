@@ -7,22 +7,22 @@ const FOG_SCALE = 0.4; // the fog is soft, so its canvas renders at low resoluti
 
 // Ball look per emotion. Numbers are the React Bits settings; intensity blends from neutral.
 // [color, crackle, flares, sparks, glow, dustSpeed, sway, fill, haze]
-// Lime on black: warm feelings lean yellow-lime, calm or low ones lean mint and teal.
+// Silver on black: warm feelings lean amber and pearl, calm or low ones lean steel blue, curious ones ice.
 const MOODS = {
-  neutral: ["#A6FF00", 0.6, 0.55, 0.45, 0.9, 0.9, 0.5, 0.5, 0.7],
-  happy: ["#C8FF2E", 0.75, 0.7, 0.65, 1.0, 1.15, 0.55, 0.55, 0.7],
-  excited: ["#E0FF1A", 1.0, 0.95, 0.95, 1.15, 1.6, 0.7, 0.62, 0.75],
-  sad: ["#2FB88A", 0.3, 0.3, 0.15, 0.7, 0.55, 0.3, 0.35, 0.9],
-  frustrated: ["#FFD21F", 1.1, 0.8, 0.9, 1.0, 1.3, 0.55, 0.5, 0.8],
-  confused: ["#6CFFB0", 0.7, 0.5, 0.5, 0.9, 0.9, 0.8, 0.5, 0.75],
-  curious: ["#8DFF3A", 0.7, 0.6, 0.6, 0.95, 1.0, 0.65, 0.52, 0.7],
-  surprised: ["#EEFF6A", 0.95, 1.0, 0.9, 1.2, 1.4, 0.6, 0.58, 0.7],
-  disappointed: ["#2A9C76", 0.3, 0.25, 0.15, 0.65, 0.5, 0.3, 0.3, 0.9],
-  nervous: ["#B8FF4A", 1.0, 0.5, 0.8, 0.95, 1.5, 0.9, 0.48, 0.8],
-  casual: ["#A6FF00", 0.55, 0.5, 0.45, 0.9, 0.9, 0.55, 0.5, 0.7],
-  playful: ["#D2FF3A", 0.8, 0.75, 0.8, 1.05, 1.3, 0.8, 0.55, 0.7],
-  thinking: ["#4DFFC4", 0.5, 0.4, 0.35, 0.85, 0.7, 0.35, 0.5, 0.8],
-  concerned: ["#45D69E", 0.45, 0.4, 0.3, 0.8, 0.7, 0.4, 0.45, 0.85],
+  neutral: ["#E6E8EE", 0.6, 0.55, 0.45, 0.9, 0.9, 0.5, 0.5, 0.7],
+  happy: ["#FFE7B0", 0.75, 0.7, 0.65, 1.0, 1.15, 0.55, 0.55, 0.7],
+  excited: ["#FFD070", 1.0, 0.95, 0.95, 1.15, 1.6, 0.7, 0.62, 0.75],
+  sad: ["#6F88BC", 0.3, 0.3, 0.15, 0.7, 0.55, 0.3, 0.35, 0.9],
+  frustrated: ["#FF9566", 1.1, 0.8, 0.9, 1.0, 1.3, 0.55, 0.5, 0.8],
+  confused: ["#B8A8FF", 0.7, 0.5, 0.5, 0.9, 0.9, 0.8, 0.5, 0.75],
+  curious: ["#9EDFFF", 0.7, 0.6, 0.6, 0.95, 1.0, 0.65, 0.52, 0.7],
+  surprised: ["#FFF1C8", 0.95, 1.0, 0.9, 1.2, 1.4, 0.6, 0.58, 0.7],
+  disappointed: ["#5E7394", 0.3, 0.25, 0.15, 0.65, 0.5, 0.3, 0.3, 0.9],
+  nervous: ["#D6C0FF", 1.0, 0.5, 0.8, 0.95, 1.5, 0.9, 0.48, 0.8],
+  casual: ["#DCDEE6", 0.55, 0.5, 0.45, 0.9, 0.9, 0.55, 0.5, 0.7],
+  playful: ["#FFC2DF", 0.8, 0.75, 0.8, 1.05, 1.3, 0.8, 0.55, 0.7],
+  thinking: ["#A8D4FF", 0.5, 0.4, 0.35, 0.85, 0.7, 0.35, 0.5, 0.8],
+  concerned: ["#8CA8CA", 0.45, 0.4, 0.3, 0.8, 0.7, 0.4, 0.45, 0.85],
 };
 const KEYS = ["crackle", "flares", "sparks", "glow", "dustSpeed", "sway", "fill", "haze"];
 const NEUTRAL = MOODS.neutral;
@@ -129,6 +129,8 @@ export class Stage {
     const changed = emotion !== this.emotion;
     this.emotion = emotion;
     this.intensity = Math.min(1, Math.max(0, intensity));
+    // the page's glow (top bar beam, aurora) follows her mood; CSS fades it over a second
+    document.documentElement.style.setProperty("--mood", MOODS[emotion][0]);
     if (changed && this.ball) {
       // a change of heart crackles around the rim
       this.ball.surge(0.6);
@@ -389,8 +391,8 @@ export class Stage {
     const W = fog.width;
     const H = fog.height;
     const S = FOG_SCALE;
-    const deep = [0.004, 0.008, 0.004]; // near-black with a breath of green
-    const tint = mix(this.color, [0, 0, 0], 0.95); // lime is bright: only a hint of it in the black
+    const deep = [0.004, 0.004, 0.005]; // near-black, neutral
+    const tint = mix(this.color, [0, 0, 0], 0.95); // the ball is bright: only a hint of it in the black
     const [cx, cy] = anchors.center;
 
     const bg = ctx.createRadialGradient(cx * S, cy * S, 0, cx * S, cy * S, Math.max(W, H) * 0.8);
@@ -402,7 +404,7 @@ export class Stage {
     ctx.fillRect(0, 0, W, H);
 
     const fogColor = mix(this.color, [1, 1, 1], 0.25);
-    const FOG_STRENGTH = 0.45; // a pale, thin mist: thick lime fog would turn the black olive
+    const FOG_STRENGTH = 0.45; // a pale, thin mist: thick fog would turn the black grey
     const t = this.reducedMotion ? 0 : this.time;
     for (const blob of this.blobs) {
       const bx = (((blob.x + t * blob.speed + 2) % 1.4) - 0.2) * W;
