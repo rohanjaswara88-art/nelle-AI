@@ -181,13 +181,6 @@ svg {
   margin-right: -0.5em;
 }
 
-.sub {
-  font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: 0.12em;
-  color: var(--ink-faint);
-}
-
 .status {
   display: flex;
   align-items: center;
@@ -284,44 +277,6 @@ body[data-state="speaking"] .dot { background: #f0ffc8; animation-duration: 0.6s
 .pill.is-loading {
   animation: breathe 1.2s ease-in-out infinite;
 }
-
-/* ---------- three-finger scroll cue ---------- */
-
-.scroll-cue {
-  position: absolute;
-  right: 22px;
-  top: calc(var(--sphere-h) + 40px);
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 10px 6px 8px;
-  border-radius: 999px;
-  border: 1px solid var(--line-strong);
-  background: rgba(3, 6, 3, 0.72);
-  color: var(--accent);
-  font-size: 9.5px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  opacity: 0;
-  pointer-events: none;
-  transform: translateX(8px);
-  transition: opacity 0.25s var(--ease), transform 0.25s var(--ease);
-}
-
-.scroll-cue svg {
-  width: 14px;
-  height: 14px;
-  transition: transform 0.2s var(--ease);
-}
-
-body.hand-scrolling .scroll-cue {
-  opacity: 1;
-  transform: none;
-  box-shadow: 0 0 18px rgba(var(--acid), 0.25);
-}
-
-.scroll-cue[data-dir="up"] svg { transform: translateY(-2px); }
-.scroll-cue[data-dir="down"] svg { transform: translateY(2px); }
 
 /* the conversation's edge lights up while the hand is scrolling it */
 body.hand-scrolling .chat {
@@ -445,30 +400,6 @@ body.hand-scrolling .chat {
   to { opacity: 1; transform: none; }
 }
 
-.chat-head {
-  position: absolute;
-  top: 16px;
-  left: 22px;
-  display: flex;
-  align-items: baseline;
-  gap: 12px;
-}
-
-.chat-head h1 {
-  margin: 0;
-  font-size: 12px;
-  font-weight: 400;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--ink-faint);
-}
-
-.chat-head .mono {
-  font-size: 10px;
-  letter-spacing: 0.14em;
-  color: var(--ink-faint);
-}
-
 .sphere-slot {
   flex: none;
   height: calc(var(--sphere-h) + 6px);
@@ -501,32 +432,6 @@ body.hand-scrolling .chat {
 
 @keyframes msg-in {
   from { opacity: 0; transform: translateY(8px); filter: blur(4px); }
-}
-
-.msg .meta {
-  margin: 0;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--ink-faint);
-}
-
-.msg .tag {
-  padding: 2px 7px;
-  border-radius: 999px;
-  border: 1px solid var(--line);
-  font-size: 9px;
-  letter-spacing: 0.12em;
-  color: var(--ink-dim);
-}
-
-.msg .tag + .tag {
-  color: var(--accent);
-  border-color: rgba(var(--lime), 0.3);
 }
 
 .msg .body {
@@ -623,7 +528,7 @@ body.started .starters {
   display: flex;
   align-items: flex-end;
   gap: 8px;
-  margin: 0 16px;
+  margin: 0 16px 16px;
   padding: 10px 10px 10px 20px;
   border-radius: 22px;
   background: linear-gradient(180deg, rgba(var(--lime), 0.06), rgba(var(--lime), 0.02)), rgba(3, 6, 3, 0.7);
@@ -710,14 +615,6 @@ body.started .starters {
   to { transform: scale(1.5); opacity: 0; }
 }
 
-.hint {
-  margin: 10px 0 14px;
-  text-align: center;
-  font-size: 9.5px;
-  letter-spacing: 0.16em;
-  color: var(--ink-faint);
-}
-
 #toast {
   position: fixed;
   z-index: 6;
@@ -749,13 +646,11 @@ body.started .starters {
   }
   body.started { --sphere-h: clamp(150px, 28dvh, 260px); }
   .topbar { top: 12px; left: 12px; right: 12px; gap: 8px; }
-  .brand .sub, .status .sep, .status #provider, .status .mood, .pill span { display: none; }
+  .status .sep, .status #provider, .status .mood, .pill span { display: none; }
   .pill { padding: 9px 11px; }
   .chat { border-radius: 22px; }
-  .chat-head { top: 12px; left: 16px; }
   #log { padding: 12px 14px 10px; }
   #composer { margin: 0 10px 10px; padding-left: 16px; }
-  .hint { display: none; }
   .cam { right: calc(var(--edge) + 10px); top: calc(var(--top) + 10px); width: 96px; }
   .cam canvas { width: 96px; height: 72px; }
   .gesture-debug { left: calc(var(--edge) + 10px); top: calc(var(--top) + 36px); width: 172px; font-size: 10px; }
@@ -767,7 +662,6 @@ body.started .starters {
 /* short screens (landscape laptops with big zoom): give the messages more room */
 @media (max-height: 640px) {
   :root, body.started { --sphere-h: clamp(150px, 34vh, 240px); }
-  .hint { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {

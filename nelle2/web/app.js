@@ -19,7 +19,6 @@ const els = {
   status: $("#status-state"),
   mood: $("#mood"),
   starters: $("#starters"),
-  memory: $("#memory"),
   toast: $("#toast"),
 };
 
@@ -30,7 +29,6 @@ const STATE_TEXT = {
   speaking: "Speaking",
   answering: "Answering",
 };
-const MEMORY_SIZE = 12;
 const TEXT_WORDS_PER_SECOND = 4.4;
 const SETTLE_MS = 1800;
 const TYPING_QUIET_MS = 900; // hands on the keyboard shouldn't fire gestures
@@ -40,7 +38,7 @@ const stage = new Stage($("#fog"), $("#ball"), $("#mind"));
 const player = new VoicePlayer();
 const speech = new SpeechInput();
 const tracker = new GestureTracker($("#cam"));
-const scroller = new HandScroller(els.log, $("#scroll-cue"));
+const scroller = new HandScroller(els.log);
 
 // Gesture name (from the registry in gestures.js) -> animation. Add a line here for a new gesture.
 const GESTURE_ACTIONS = {
@@ -113,11 +111,6 @@ function setMood({ emotion, intensity, voiceStyle }) {
   els.mood.title = `Intensity ${Number(intensity).toFixed(2)} · voice ${voiceStyle}`;
 }
 
-function setMemory(count) {
-  const text = `${String(count).padStart(2, "0")}/${MEMORY_SIZE}`;
-  els.memory.textContent = `MEM ${text}`;
-}
-
 function toast(message) {
   els.toast.textContent = message;
   els.toast.classList.add("show");
@@ -125,25 +118,13 @@ function toast(message) {
   toast.timer = setTimeout(() => els.toast.classList.remove("show"), 4200);
 }
 
-function addMessage(role, text, meta = {}) {
+function addMessage(role, text) {
   const item = document.createElement("li");
   item.className = `msg ${role}`;
-  const label = document.createElement("p");
-  label.className = "meta";
-  label.textContent = role === "user" ? "You" : "Nelle";
-  if (role === "nelle" && meta.emotion) {
-    for (const text of [meta.emotion, meta.topic && meta.topic !== "general" ? meta.topic : null]) {
-      if (!text) continue;
-      const tag = document.createElement("span");
-      tag.className = "tag";
-      tag.textContent = text;
-      label.append(tag);
-    }
-  }
   const body = document.createElement("p");
   body.className = "body";
   body.textContent = text;
-  item.append(label, body);
+  item.append(body);
   els.log.append(item);
   els.log.scrollTo({ top: els.log.scrollHeight, behavior: "smooth" });
   return { item, body };
@@ -268,9 +249,8 @@ async function send(text, viaVoice = false) {
   stage.found(data.topic);
 
   setMood(data);
-  if (data.memory !== undefined) setMemory(data.memory);
   if (data.source === "claude" || data.source === "offline") els.provider.textContent = data.source.toUpperCase();
-  const message = addMessage("nelle", "", data); // filled in word by word below
+  const message = addMessage("nelle", ""); // filled in word by word below
   if (data.url) {
     addLink(message.item, data.url);
     window.open(data.url, "_blank", "noopener");
@@ -367,7 +347,6 @@ tracker.on("gesture", ({ name }) => {
 tracker.on("move", (move) => stage.handMove(move));
 tracker.on("scroll", (scroll) => {
   scroller.update(scroll);
-  stage.handScroll(scroll);
 });
 
 function renderCameraToggle(loading = false) {
@@ -410,7 +389,6 @@ els.reset.addEventListener("click", async () => {
   els.log.replaceChildren();
   document.body.classList.remove("started");
   setMood({ emotion: "neutral", intensity: 0.4, voiceStyle: "calm" });
-  setMemory(0);
   stage.setTopic("general");
   stage.jolt(1);
 });
@@ -421,21 +399,19 @@ async function boot() {
   if (readSetting("nelle.camera", false)) setCamera(true);
   setMood({ emotion: "neutral", intensity: 0.4, voiceStyle: "calm" });
   setState("idle");
-  setMemory(0);
   stage.start();
   try {
     // A fresh page starts a fresh conversation: Nelle shouldn't remember chat you can no longer see.
     await postJson("/api/reset", {});
     const status = await (await fetch("/api/status")).json();
     els.provider.textContent = status.provider.toUpperCase();
-    setMemory(status.memory);
   } catch {
     els.provider.textContent = "NO SERVER";
   }
   setTimeout(async () => {
     if (els.log.children.length) return;
     const id = job;
-    const greeting = addMessage("nelle", "", { emotion: "neutral", intensity: 0.4 });
+    const greeting = addMessage("nelle", "");
     setState("answering");
     await startReveal(greeting.body, "I'm here. Type to me, or press the mic and just talk.", null);
     setTimeout(() => id === job && state === "answering" && setState("idle"), SETTLE_MS);

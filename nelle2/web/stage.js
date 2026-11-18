@@ -273,13 +273,6 @@ export class Stage {
     if (move.wave) this.wave(Math.sign(vx) || 1);
   }
 
-  /** Three-finger scrolling: the dust drifts with the scroll, so the ball feels it too. */
-  handScroll(scroll) {
-    if (!this.ball || !scroll) return;
-    const lift = Math.max(-1, Math.min(1, -scroll.vy / 1200)); // vy in px per second
-    this.ball.lean(0, lift, this.reducedMotion ? 0.3 : 0.8);
-  }
-
   /** A wave of the hand: ripples roll across the dust and out through the fog. */
   wave(direction = 1) {
     if (!this.ball) return;

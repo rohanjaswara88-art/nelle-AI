@@ -8,7 +8,7 @@ const GLIDE_SECONDS = 0.25; // momentum after letting go
 const MIN_GLIDE_SPEED = 60; // px per second: slower than this when letting go means no glide
 
 export class HandScroller {
-  constructor(target, cue) {
+  constructor(target, cue = null) {
     this.target = target;
     this.cue = cue;
     this.active = false;
@@ -63,6 +63,6 @@ export class HandScroller {
 
   showDirection(direction) {
     const value = direction > 0 ? "down" : direction < 0 ? "up" : "";
-    if (this.cue.dataset.dir !== value) this.cue.dataset.dir = value;
+    if (this.cue && this.cue.dataset.dir !== value) this.cue.dataset.dir = value;
   }
 }
