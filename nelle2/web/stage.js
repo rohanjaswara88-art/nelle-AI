@@ -31,6 +31,7 @@ const SEARCH_AFTER = 1.4; // seconds of thinking before the ball starts "searchi
 const PING_EVERY = 1.1;
 const GESTURE_HOLD = 2.5; // seconds a gesture shape stays up
 const HAND_REACH = 1.0; // the camera frame's edges map to the ball's rim
+const CURSOR_REACH = 1.35; // the hand cursor stirs the sphere within this many radii of its centre
 const KICK_SPEED = 0.35; // finger speed (ball radii per second) before a move also jolts the dust
 const KICK_EVERY = 0.12;
 const ARC_SPEED = 1.5; // faster than this, the rim sparks where the finger is heading
@@ -271,6 +272,33 @@ export class Stage {
       this.ball.surge(Math.min(0.8, speed * 0.25));
     }
     if (move.wave) this.wave(Math.sign(vx) || 1);
+  }
+
+  /**
+   * The hand cursor (window px, px per second), or null. The sphere only reacts while the cursor
+   * is over it or close to it: the dust gathers under the cursor and is stirred as it moves.
+   */
+  handCursor(cursor) {
+    if (!cursor) {
+      this.handMove(null);
+      return;
+    }
+    const { center, radius } = this.anchors();
+    const bx = (cursor.x - center[0]) / radius; // ball radii, y down
+    const by = (cursor.y - center[1]) / radius;
+    if (Math.hypot(bx, by) > CURSOR_REACH) {
+      this.handMove(null);
+      return;
+    }
+    // handMove takes a point in 0..1 that spans ±HAND_REACH ball radii
+    const span = 2 * HAND_REACH;
+    this.handMove({
+      x: 0.5 + bx / span,
+      y: 0.5 + by / span,
+      vx: cursor.vx / radius / span,
+      vy: cursor.vy / radius / span,
+      wave: false,
+    });
   }
 
   /** Three-finger scrolling: the dust drifts with the scroll, so the ball feels it too. */

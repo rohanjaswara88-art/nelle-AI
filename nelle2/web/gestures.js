@@ -16,10 +16,13 @@ import {
   fingerStates,
   indexTip,
   isFive,
+  isOk,
   isPoint,
   isThree,
   isThumbsUp,
   isTwo,
+  thumbButton,
+  thumbTap,
 } from "./poses.js";
 
 const VISION = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.2.0";
@@ -98,11 +101,13 @@ export class CameraError extends Error {
  * Watches one hand through the camera. Call tick(now) once per animation frame (from stage.onFrame);
  * it runs detection whenever the camera has delivered a new frame. Events:
  *   gesture  { name }                       a registered pose was held (debounced, see PoseGate)
- *   move     { x, y, vx, vy, wave } | null  index fingertip in 0..1 screen space (mirrored), per
- *                                           second, only while pointing; null when not following
+ *   move     { x, y, vx, vy, wave, tip,     while pointing: the index fingertip, smoothed (x, y,
+ *              button } | null              per second) and raw (tip), both 0..1 mirrored, and the
+ *                                           thumb as a mouse button ("down"/"up"); null after
  *   scroll   { dy, vy } | null              while three fingers are up: pixels to scroll now and the
  *                                           speed in px/s (down is positive), from the fingertips,
  *                                           so tilting the fingers is enough; null when it ends
+ *   zoom     { dy, vy } | null              while the OK sign 👌 is up: its movement (as scroll)
  *   pose     { pose, states, ... } | null   every detection, for the debug overlay
  */
 export class GestureTracker {
@@ -114,8 +119,11 @@ export class GestureTracker {
     this.gate = new PoseGate();
     this.filter = new MotionFilter({ smoothing: FINGER_SMOOTHING, deadZone: FINGER_DEAD_ZONE });
     this.fingerScroll = new FingerScroll();
+    this.zoomScroll = new FingerScroll();
+    this.button = "up";
     this.follow = { active: false, seen: 0, missed: 0 };
     this.scroll = { active: false, seen: 0, missed: 0 };
+    this.zooming = { active: false, seen: 0, missed: 0 };
     this.states = null;
     this.running = false;
     this.frame = 0;
@@ -161,11 +169,15 @@ export class GestureTracker {
     this.gate.reset();
     this.filter.reset();
     this.fingerScroll.reset();
+    this.zoomScroll.reset();
+    this.button = "up";
     this.follow = { active: false, seen: 0, missed: 0 };
     this.scroll = { active: false, seen: 0, missed: 0 };
+    this.zooming = { active: false, seen: 0, missed: 0 };
     this.states = null;
     this.emit("move", null);
     this.emit("scroll", null);
+    this.emit("zoom", null);
   }
 
   /** Track a held mode (pointing, three fingers): on after a short streak, off after a few misses. */
@@ -178,14 +190,31 @@ export class GestureTracker {
     return was !== mode.active;
   }
 
-  /** Point with the index finger to be followed; stop pointing (or leave) to let go. */
-  updateFollow(hand, states, now) {
+  /** Point with the index finger to move the hand cursor; the thumb is its button. */
+  updateFollow(hand, states, now, aspect) {
     const changed = GestureTracker.updateMode(this.follow, Boolean(hand) && isPoint(hand, states));
     if (changed && !this.follow.active) {
       this.filter.reset();
+      this.button = "up";
       this.emit("move", null);
     }
-    if (this.follow.active && hand) this.emit("move", this.filter.update(indexTip(hand), now));
+    if (!this.follow.active || !hand) return;
+    this.button = thumbButton(hand, states, this.button, aspect);
+    const tip = indexTip(hand);
+    this.emit("move", { ...this.filter.update(tip, now), tip, button: this.button });
+  }
+
+  /** OK sign 👌: moving it up or down zooms the conversation's text. */
+  updateZoom(hand, states, now, aspect) {
+    const ok = Boolean(hand) && isOk(hand, states, aspect);
+    const changed = GestureTracker.updateMode(this.zooming, ok);
+    if (changed && !this.zooming.active) {
+      this.zoomScroll.reset();
+      this.emit("zoom", null);
+    }
+    if (!ok) return;
+    const step = this.zoomScroll.update(hand, now, aspect);
+    if (this.zooming.active && step) this.emit("zoom", step);
   }
 
   /**
@@ -303,12 +332,25 @@ export class GestureTracker {
     // sideways hands, like a thumbs up, so it is no longer used here.)
     const fired = this.gate.update(quiet ? null : pose, hand ? 1 : 0, now);
     if (fired) this.emit("gesture", { name: fired });
-    this.updateFollow(hand, states, now);
+    this.updateFollow(hand, states, now, aspect);
     this.updateScroll(hand, states, now, aspect);
+    this.updateZoom(hand, states, now, aspect);
     this.emit(
       "pose",
       hand
-        ? { pose, states, score: side, quiet, following: this.following, scrolling: this.scrolling, world: Boolean(world), detectMs: this.detectMs }
+        ? {
+            pose,
+            states,
+            score: side,
+            quiet,
+            following: this.following,
+            scrolling: this.scrolling,
+            zooming: this.zooming.active,
+            button: this.button,
+            tap: thumbTap(hand, aspect),
+            world: Boolean(world),
+            detectMs: this.detectMs,
+          }
         : null,
     );
     this.drawPreview(hand, aspect);
