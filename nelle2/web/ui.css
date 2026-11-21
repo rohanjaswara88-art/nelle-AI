@@ -1,0 +1,279 @@
+/* The top bar, its buttons and the background effects, in the style of 21st.dev components
+   (border beam, shimmer text, spotlight buttons, background grid, aurora, meteors), rebuilt
+   in plain CSS. Loaded after styles.css. --mood is set by stage.js to the ball's colour, so
+   the glow follows Nelle's feelings. Only transform, opacity and registered custom properties
+   animate, so everything stays on the GPU. */
+
+@property --mood {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #e6e8ee;
+}
+
+@property --beam-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+:root {
+  transition: --mood 1.2s var(--ease);
+}
+
+/* ---------- background: grid, aurora, meteors ---------- */
+
+.bg-fx {
+  position: fixed;
+  z-index: 0;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* a fine grid that fades out round the sphere, so it frames the ball instead of crossing it */
+.bg-grid {
+  position: absolute;
+  inset: -64px;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.045) 1px, transparent 1px);
+  background-size: 64px 64px;
+  mask-image: radial-gradient(ellipse 70% 60% at 50% 30%, transparent 28%, #000 70%, transparent 100%);
+  -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 30%, transparent 28%, #000 70%, transparent 100%);
+  animation: grid-drift 24s linear infinite;
+}
+
+@keyframes grid-drift {
+  to { transform: translate(64px, 64px); }
+}
+
+/* two soft clouds of light in the mood's colour, drifting slowly behind everything */
+.aurora {
+  position: absolute;
+  width: 60vmax;
+  height: 60vmax;
+  border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--mood) 22%, transparent), transparent 65%);
+  opacity: 0.55;
+  filter: blur(40px);
+  will-change: transform;
+}
+
+.aurora.one {
+  top: -30vmax;
+  left: -18vmax;
+  animation: aurora-a 26s ease-in-out infinite alternate;
+}
+
+.aurora.two {
+  right: -24vmax;
+  bottom: -34vmax;
+  opacity: 0.4;
+  animation: aurora-b 32s ease-in-out infinite alternate;
+}
+
+@keyframes aurora-a {
+  to { transform: translate(18vmax, 10vmax) scale(1.15); }
+}
+
+@keyframes aurora-b {
+  to { transform: translate(-16vmax, -12vmax) scale(0.9); }
+}
+
+/* now and then a thin streak of light falls across the stage */
+.meteor {
+  position: absolute;
+  top: -10%;
+  width: 1px;
+  height: 110px;
+  background: linear-gradient(transparent, rgba(255, 255, 255, 0.55));
+  border-radius: 1px;
+  opacity: 0;
+  transform: rotate(215deg);
+  animation: meteor 11s linear infinite;
+}
+
+.meteor::after {
+  content: "";
+  position: absolute;
+  bottom: -2px;
+  left: -1.5px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 10px 2px color-mix(in srgb, var(--mood) 70%, #fff);
+}
+
+.meteor:nth-child(4) { left: 18%; animation-delay: 1.5s; }
+.meteor:nth-child(5) { left: 46%; animation-delay: 5.5s; animation-duration: 13s; }
+.meteor:nth-child(6) { left: 72%; animation-delay: 8s; animation-duration: 9s; }
+.meteor:nth-child(7) { left: 90%; animation-delay: 3s; animation-duration: 15s; }
+
+@keyframes meteor {
+  0% { opacity: 0; transform: rotate(215deg) translateY(0); }
+  2% { opacity: 1; }
+  12% { opacity: 0; transform: rotate(215deg) translateY(-80vh); }
+  100% { opacity: 0; transform: rotate(215deg) translateY(-80vh); }
+}
+
+/* ---------- top bar: one floating glass bar with a light running round its edge ---------- */
+
+.topbar {
+  top: 14px;
+  left: var(--edge);
+  right: var(--edge);
+  padding: 6px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.015)), rgba(8, 8, 8, 0.72);
+  border: 1px solid var(--line);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 20px 50px -24px rgba(0, 0, 0, 0.95);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+/* the border beam: a bright arc travelling round the bar's edge */
+.topbar::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  padding: 1px;
+  border-radius: inherit;
+  pointer-events: none;
+  background: conic-gradient(
+    from var(--beam-angle),
+    transparent 0 70%,
+    color-mix(in srgb, var(--mood) 60%, transparent) 82%,
+    #fff 88%,
+    transparent 94%
+  );
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  -webkit-mask-composite: xor;
+  animation: beam-spin 7s linear infinite;
+}
+
+body[data-state="thinking"] .topbar::before,
+body[data-state="answering"] .topbar::before { animation-duration: 2.4s; }
+body[data-state="speaking"] .topbar::before { animation-duration: 1.6s; }
+
+@keyframes beam-spin {
+  to { --beam-angle: 360deg; }
+}
+
+/* the pieces inside sit flat on the bar instead of being separate pills */
+.topbar .glass {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.brand {
+  padding: 6px 14px 6px 16px;
+}
+
+/* shimmer: a band of light sweeps across the name every few seconds */
+.logo {
+  background: linear-gradient(110deg, #9a9a9a 35%, #fff 50%, #9a9a9a 65%) 0 0 / 250% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  animation: shimmer 6s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0%, 60% { background-position: 100% 0; }
+  100% { background-position: -50% 0; }
+}
+
+.topbar .status {
+  padding: 7px 14px;
+  border-left-color: var(--line);
+  border-radius: 0;
+}
+
+/* the status dot pings outward, faster while she's busy */
+.dot {
+  position: relative;
+  background: var(--mood);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--mood) 80%, transparent);
+  animation: none;
+}
+
+.dot::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: var(--mood);
+  animation: ping 2.4s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+body[data-state="listening"] .dot::after { animation-duration: 0.9s; }
+body[data-state="thinking"] .dot::after,
+body[data-state="answering"] .dot::after { animation-duration: 1.2s; }
+body[data-state="speaking"] .dot::after { animation-duration: 0.7s; }
+
+@keyframes ping {
+  75%, 100% { transform: scale(2.8); opacity: 0; }
+}
+
+/* ---------- spotlight buttons ---------- */
+
+.topbar .pill {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  padding: 8px 15px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.025);
+}
+
+/* a soft light that follows the pointer inside the button (spotlight.js sets --mx and --my) */
+.topbar .pill::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  background: radial-gradient(120px circle at var(--mx, 50%) var(--my, 50%), rgba(255, 255, 255, 0.16), transparent 60%);
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.topbar .pill:hover::before { opacity: 1; }
+
+.topbar .pill:hover {
+  border-color: var(--line-strong);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+/* switched on: lit from inside with the mood's colour */
+.topbar .pill[aria-pressed="true"] {
+  color: #0a0a0a;
+  border-color: transparent;
+  background: linear-gradient(180deg, #fff, color-mix(in srgb, var(--mood) 55%, #cfcfcf));
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.35),
+    0 6px 22px -6px color-mix(in srgb, var(--mood) 70%, transparent);
+}
+
+.topbar .pill[aria-pressed="true"]::before {
+  background: radial-gradient(120px circle at var(--mx, 50%) var(--my, 50%), rgba(255, 255, 255, 0.6), transparent 60%);
+}
+
+/* ---------- smaller screens and reduced motion ---------- */
+
+@media (max-width: 860px) {
+  .topbar { top: 8px; padding: 4px; }
+  .brand { padding: 6px 10px; }
+  .status { padding: 6px 10px; }
+  .topbar .pill { padding: 8px 10px; }
+  .meteor:nth-child(n + 6) { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bg-grid, .aurora, .meteor, .topbar::before, .logo, .dot::after { animation: none; }
+  .meteor { display: none; }
+}

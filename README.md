@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/rohanjaswara88-art/nelle-AI/actions/workflows/ci.yml/badge.svg)](https://github.com/rohanjaswara88-art/nelle-AI/actions/workflows/ci.yml)
 
-Nelle is an AI you talk to in the browser. She lives inside a crystal ball of crackling lime plasma and drifting dust, on a black, lightly fogged stage. She reads the whole conversation, decides how she feels about it, and shows that feeling: in the ball's colour, crackle and sparks, in the fog around it and in the tone of her voice. Inside the ball, points of light join up into a picture of what you are talking about: `</>` for code, a heart for love, Saturn for space. When you send a message, the ball swirls as it takes it in. Ask by voice and she answers out loud, with the rim swelling and sparking in time with her words. Type, and she answers in text while the ball stirs gently in the background.
+Nelle is an AI you talk to in the browser. She lives inside a crystal ball of crackling silver plasma and drifting dust, on a near-black, lightly fogged stage. She reads the whole conversation, decides how she feels about it, and shows that feeling: in the ball's colour, crackle and sparks, in the fog around it and in the tone of her voice. Inside the ball, points of light join up into a picture of what you are talking about: `</>` for code, a heart for love, Saturn for space. When you send a message, the ball swirls as it takes it in. Ask by voice and she answers out loud, with the rim swelling and sparking in time with her words. Type, and she answers in text while the ball stirs gently in the background.
 
 > Built by [Rohan Jaswara](https://rohanjaswara88-art.github.io/portfolio/), a BCA (AI & ML) student.
 
@@ -12,13 +12,13 @@ Nelle is an AI you talk to in the browser. She lives inside a crystal ball of cr
 |---|---|---|
 | ![Idle: a turning network globe](docs/screenshots/idle.jpg) | ![Searching: the dust swirls in as she takes the message in](docs/screenshots/thinking.jpg) | ![After a breakup message the sphere softens with concern](docs/screenshots/love.jpg) |
 
-The whole screen is one chat box: the sphere lives at its top and reacts from there, the messages scroll in a centred column underneath, and the input runs the full width along the bottom. Once the conversation starts, the sphere steps back a little to give the messages room. On a phone it is the same box, just tighter.
+The whole screen is one chat box: the sphere lives at its top and reacts from there, the messages scroll in a centred column underneath, and the input runs the full width along the bottom. Once the conversation starts, the sphere steps back a little to give the messages room. On a phone it is the same box, just tighter. Above it floats one glass top bar with a light running round its edge, a shimmering NELLE, a status dot that pings faster while she is busy, and buttons that glow where your pointer is. Behind everything a faint grid frames the sphere, two slow clouds of light drift by and the odd meteor falls. The edge light, the dot, the clouds and the switched-on buttons all take the colour of her current mood. These effects are styled after [21st.dev](https://21st.dev) components, rebuilt in plain CSS (`ui.css`, `spotlight.js`).
 
 ## What she does
 
 - **Feels the conversation.** Each reply comes back as structured JSON: `{emotion, intensity, response, voiceStyle}`, from 14 emotions (happy, excited, sad, frustrated, confused, curious, surprised, disappointed, nervous, casual, playful, thinking, concerned, neutral). Claude reads the last 12 messages and her current mood, not just keywords.
 - **Doesn't flicker between moods.** A smoother keeps her mood steady: a weak, different emotion is ignored and the current one fades, while a clear new emotion takes over. A repeated emotion blends its intensity instead of jumping.
-- **Shows it in the ball.** Each emotion has its own shade of the lime palette and its own energy: excited is electric yellow-lime with fast dust and lots of sparks, sad and disappointed sink to a dim teal with slow dust settling low, frustrated crackles amber, thinking turns mint with arcs chasing round the rim. Changes blend smoothly over about a second.
+- **Shows it in the ball.** Each emotion has its own tint of silver and its own energy: excited is warm amber-white with fast dust and lots of sparks, sad and disappointed sink to a dim steel blue with slow dust settling low, frustrated crackles ember orange, thinking turns ice blue with arcs chasing round the rim. Changes blend smoothly over about a second.
 - **Draws the topic.** A constellation of 72 points lives inside the ball. At rest it is a slowly turning network globe. When she answers, the server works out what the exchange is about (`topics.py`, 17 topics) and the points fly into a shape for it, with the lines drawing themselves in: `</>` code, a neural net for AI, Σ maths, an atom for science, Saturn for space, notes for music, a heart for love, a heartbeat for health, a rising chart for money, a storm cloud for weather, a clock for time and history, a leaf for nature, a paper plane for travel, a globe for the web, an open book for writing, a smile for fun and a cup for food. The shape sways in 3D, sparks of thought run along its lines (faster while she speaks), and it all scales with the ball, so it fits any screen.
 - **Shows her thinking.** While she finds an answer, the points let go of their shape and drift through the ball, linking and unlinking with their neighbours as if browsing, while the dust turns into a slow vortex. If the answer takes longer, she starts *searching*: everything moves faster, sparks race along the links and sonar pings ripple out into the fog. When the answer is found, a ripple bursts out of the ball and the points assemble into the topic's shape.
 - **Reacts to you.** Sending a message swirls the dust up from below. Listening sends slow rings out into the fog. Hovering or clicking the ball stirs it too.
@@ -34,7 +34,7 @@ The whole screen is one chat box: the sphere lives at its top and reacts from th
 |---|---|---|
 | ![A flower blooming petal by petal](docs/screenshots/gesture-flower.png) | ![A smiling face, the ball turning happy](docs/screenshots/gesture-smile.png) | ![HI BRO spelled in particles](docs/screenshots/gesture-hibro.png) |
 
-Press the **Camera** pill in the top bar (it stays off until you turn it on, and the choice is remembered). A small mirrored preview appears in the bottom-left corner with your hand's 21 tracking points drawn in lime; click it to hide the video and keep just the points.
+Press the **Camera** pill in the top bar (it stays off until you turn it on, and the choice is remembered). A small mirrored preview appears in the bottom-left corner with your hand's 21 tracking points drawn in white; click it to hide the video and keep just the points.
 
 | Show | Nelle |
 |---|---|
@@ -132,7 +132,7 @@ nelle2/
   commands.py  the original command matcher (open, search, time)
   nelle.py     the original terminal voice assistant (still works)
   web/         index.html, styles.css, app.js, stage.js, crystal.js, constellation.js, voice.js,
-               gestures.js, poses.js, handscroll.js, strokefont.js, gesture-debug.js
+               gestures.js, poses.js, handscroll.js, spotlight.js, ui.css, strokefont.js, gesture-debug.js
 tests/         pytest tests; tests/js has the Node tests for the hand-pose rules
 docs/          screenshots
 ```

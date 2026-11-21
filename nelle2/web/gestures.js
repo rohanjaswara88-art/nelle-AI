@@ -334,14 +334,14 @@ export class GestureTracker {
     }
     if (!hand) return;
     ctx.lineWidth = 1.5;
-    ctx.strokeStyle = "rgba(182, 255, 59, 0.9)";
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.9)";
     ctx.beginPath();
     for (const [a, b] of CONNECTIONS) {
       ctx.moveTo(hand[a].x * width, hand[a].y * height);
       ctx.lineTo(hand[b].x * width, hand[b].y * height);
     }
     ctx.stroke();
-    ctx.fillStyle = "#efffd6";
+    ctx.fillStyle = "#ffffff";
     for (const p of hand) {
       ctx.beginPath();
       ctx.arc(p.x * width, p.y * height, 2, 0, Math.PI * 2);
