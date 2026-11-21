@@ -29,10 +29,10 @@ short question when a request can mean two different things.
 ## Code map
 
 - `nelle2/server.py` API + static files; `brain.py` Claude call and offline replies; `emotion.py`
-  mood smoothing; `topics.py` topic detection; `calc.py` safe arithmetic; `voice.py` edge-tts.
+  mood smoothing; `topics.py` topic detection; `calc.py` safe arithmetic; `refine.py` prompt suggestions; `voice.py` edge-tts.
 - `nelle2/web/app.js` wires everything; `stage.js` sphere + frame loop; `crystal.js` plasma render;
   `constellation.js` points and shapes; `gestures.js` camera + gesture events; `poses.js` pure
-  hand-pose maths (unit-tested); `handscroll.js` three-finger scrolling.
+  hand-pose maths (unit-tested); `handscroll.js` three-finger scrolling; `refine.js` suggestion chips.
 - Hand fixtures for JS tests: `tests/js/fixtures/hands.json`.
 
 ## Testing gestures

@@ -14,6 +14,7 @@
     />
     <link rel="stylesheet" href="/static/styles.css" />
     <link rel="stylesheet" href="/static/ui.css" />
+    <link rel="stylesheet" href="/static/refine.css" />
   </head>
   <body data-state="idle">
     <canvas id="fog" aria-hidden="true"></canvas>
@@ -67,6 +68,7 @@
         <button type="button">Tell me a joke</button>
         <button type="button">What's 18% of 250?</button>
       </div>
+      <div id="refine" class="refine" hidden aria-live="polite" aria-label="Suggested ways to ask"></div>
       <form id="composer" autocomplete="off">
         <label class="sr-only" for="input">Message Nelle</label>
         <textarea id="input" rows="1" maxlength="2000" placeholder="Say something to Nelle…"></textarea>

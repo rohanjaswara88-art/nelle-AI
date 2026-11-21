@@ -2,6 +2,7 @@
 import { attachGestureDebug } from "./gesture-debug.js";
 import { CameraError, GestureTracker } from "./gestures.js";
 import { HandScroller } from "./handscroll.js";
+import { PromptRefiner } from "./refine.js";
 import { spotlight } from "./spotlight.js";
 import { Stage } from "./stage.js";
 import { SpeechInput, VoicePlayer } from "./voice.js";
@@ -218,6 +219,7 @@ async function send(text, viaVoice = false) {
   const wantsVoice = viaVoice || speakReplies;
   if (wantsVoice) player.unlock(); // still inside the click/keypress, so audio is allowed
   document.body.classList.add("started");
+  refiner.reset();
   addMessage("user", text);
   stage.receive(); // the ball takes the message in
   els.input.value = "";
@@ -319,6 +321,13 @@ els.input.addEventListener("keydown", (event) => {
   }
 });
 els.input.addEventListener("input", autosize);
+// better ways to ask, offered while typing; Enter still sends exactly what was typed
+const refiner = new PromptRefiner({
+  input: els.input,
+  box: $("#refine"),
+  fetchSuggestions: (text, signal) => postJson("/api/refine", { text }, signal),
+  onPick: autosize,
+});
 addEventListener("keydown", () => tracker.quiet(TYPING_QUIET_MS));
 els.mic.addEventListener("click", listen);
 els.starters.addEventListener("click", (event) => {

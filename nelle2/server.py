@@ -21,16 +21,22 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from brain import Brain  # noqa: E402
 from topics import detect_topic  # noqa: E402
 from emotion import EMOTIONS  # noqa: E402
+from refine import MIN_DRAFT_CHARS  # noqa: E402
 
 WEB_DIR = Path(__file__).resolve().parent / "web"
 MAX_MESSAGE_CHARS = 2000
 MAX_SPEECH_CHARS = 3000
+MAX_DRAFT_CHARS = 500
 
 log = logging.getLogger("nelle.server")
 
 
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=MAX_MESSAGE_CHARS)
+
+
+class RefineRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=MAX_DRAFT_CHARS)
 
 
 class SpeechRequest(BaseModel):
@@ -68,6 +74,15 @@ def create_app(brain: Brain | None = None) -> FastAPI:
             "topic": detect_topic(message, result.reply.response, result.source),
             "memory": len(b.memory),
         }
+
+    @app.post("/api/refine")
+    def refine(request: RefineRequest) -> dict:
+        """Better versions of the message being typed, for the suggestion chips."""
+        text = request.text.strip()
+        if len(text) < MIN_DRAFT_CHARS:
+            return {"suggestions": [], "source": "none"}
+        suggestions, source = app.state.brain.suggest(text)
+        return {"suggestions": suggestions, "source": source}
 
     @app.post("/api/reset")
     def reset() -> dict:
