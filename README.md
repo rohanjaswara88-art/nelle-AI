@@ -21,6 +21,7 @@ The whole screen is one chat box: the sphere lives at its top and reacts from th
 - **Shows it in the ball.** Each emotion has its own tint of silver and its own energy: excited is warm amber-white with fast dust and lots of sparks, sad and disappointed sink to a dim steel blue with slow dust settling low, frustrated crackles ember orange, thinking turns ice blue with arcs chasing round the rim. Changes blend smoothly over about a second.
 - **Draws the topic.** A constellation of 72 points lives inside the ball. At rest it is a slowly turning network globe. When she answers, the server works out what the exchange is about (`topics.py`, 17 topics) and the points fly into a shape for it, with the lines drawing themselves in: `</>` code, a neural net for AI, Σ maths, an atom for science, Saturn for space, notes for music, a heart for love, a heartbeat for health, a rising chart for money, a storm cloud for weather, a clock for time and history, a leaf for nature, a paper plane for travel, a globe for the web, an open book for writing, a smile for fun and a cup for food. The shape sways in 3D, sparks of thought run along its lines (faster while she speaks), and it all scales with the ball, so it fits any screen.
 - **Shows her thinking.** While she finds an answer, the points let go of their shape and drift through the ball, linking and unlinking with their neighbours as if browsing, while the dust turns into a slow vortex. If the answer takes longer, she starts *searching*: everything moves faster, sparks race along the links and sonar pings ripple out into the fog. When the answer is found, a ripple bursts out of the ball and the points assemble into the topic's shape.
+- **Helps you ask.** When you pause while typing, a line of light sweeps across above the input and up to three better ways to ask appear behind it: a corrected version, a clearer one and a more detailed one. Click one, or press Tab to move between them and Enter to use it. Don't want them? Keep typing, press Esc, or just press Enter: your own words are sent exactly as you wrote them. With an API key the suggestions come from a fast Claude model (`claude-haiku-5-5`, change it with `NELLE_REFINE_MODEL`); offline, simple rules fix shorthand and typos (`u`, `dont`, `pyhton`) and reshape the request. Suggestions never go into the conversation memory.
 - **Reacts to you.** Sending a message swirls the dust up from below. Listening sends slow rings out into the fog. Hovering or clicking the ball stirs it too.
 - **Speaks with one voice.** She uses a single neural voice (edge-tts `en-US-AvaNeural`) with small rate and pitch changes per emotion. The audio's loudness swells the rim and gently pulses the ball, and emphasised words fire sparks along the rim.
 - **Can be interrupted.** Press Esc or the stop button, or send a new message. The audio and the ball's speaking motion stop cleanly, and the unspoken rest of the reply is dimmed.
@@ -127,12 +128,13 @@ nelle2/
   brain.py     short-term memory, Claude call, offline fallback
   emotion.py   emotion JSON parsing, validation and smoothing
   calc.py      exact, safe arithmetic for maths questions
+  refine.py    better ways to ask, suggested while typing
   topics.py    keyword topic detection for the constellation
   voice.py     edge-tts voice with per-emotion delivery and word timings
   commands.py  the original command matcher (open, search, time)
   nelle.py     the original terminal voice assistant (still works)
   web/         index.html, styles.css, app.js, stage.js, crystal.js, constellation.js, voice.js,
-               gestures.js, poses.js, handscroll.js, spotlight.js, ui.css, strokefont.js, gesture-debug.js
+               gestures.js, poses.js, handscroll.js, spotlight.js, ui.css, refine.js, refine.css, strokefont.js, gesture-debug.js
 tests/         pytest tests; tests/js has the Node tests for the hand-pose rules
 docs/          screenshots
 ```

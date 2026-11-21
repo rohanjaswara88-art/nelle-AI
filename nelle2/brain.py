@@ -16,6 +16,7 @@ from typing import Protocol
 
 from calc import Calculation, calculate
 from commands import UNKNOWN_REPLY, looks_like_command, match_command
+from refine import REFINE_MODEL, claude_suggestions, offline_suggestions
 from emotion import DEFAULT_VOICE_STYLE, EMOTIONS, VOICE_STYLES, EmotionReply, EmotionSmoother, parse_reply
 
 log = logging.getLogger("nelle.brain")
@@ -122,6 +123,10 @@ class ClaudeProvider:
         text = "".join(block.text for block in response.content if block.type == "text")
         return parse_reply(text)
 
+    def suggest(self, draft: str) -> list[str]:
+        """Better versions of a draft message, from a fast model."""
+        return claude_suggestions(self._client, draft, os.environ.get("NELLE_REFINE_MODEL", REFINE_MODEL))
+
 
 class OfflineProvider:
     """A tiny rule-based stand-in used when no model is configured or the model call fails.
@@ -215,6 +220,22 @@ class Brain:
         reply = self.smoother.update(raw)
         self.memory.add("assistant", reply.response)
         return ChatResult(reply, source)
+
+    def suggest(self, draft: str) -> tuple[list[str], str]:
+        """Up to three better versions of what the user is typing, and where they came from.
+
+        Uses the model when it can; on no model, an error or an empty answer, the offline rules.
+        """
+        draft = draft.strip()
+        model_suggest = getattr(self.provider, "suggest", None)
+        if model_suggest is not None:
+            try:
+                suggestions = model_suggest(draft)
+                if suggestions:
+                    return suggestions, self.provider.name
+            except Exception:  # noqa: BLE001 - suggestions are optional: never break typing
+                log.exception("Suggestion call failed; using offline suggestions")
+        return offline_suggestions(draft), "offline"
 
     def _remember(self, user: str, assistant: str) -> None:
         self.memory.add("user", user)
