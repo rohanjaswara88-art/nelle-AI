@@ -1,0 +1,6 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    { "name": "nelle", "runtimeExecutable": "python", "runtimeArgs": ["nelle2/server.py"], "port": 8000 }
+  ]
+}
